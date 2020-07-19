@@ -1,0 +1,31 @@
+start_region:
+  min_limits:
+    [
+     0.37
+    ,-0.25
+    ,0.62
+
+    ,0.0
+    ,0.0
+    ,0.0
+
+    ,-2.135398
+    #,-0.0872665
+    ]
+  max_limits:
+    [
+     0.63
+    ,0.05
+    ,0.62
+
+    ,0.0
+    ,0.0
+    ,3.14159265359
+
+    ,0.564602
+    #,-0.0872665
+    ]
+
+
+# preprocess_planner: ARAStar
+preprocess_planner: RRTConnectkConfigDefault

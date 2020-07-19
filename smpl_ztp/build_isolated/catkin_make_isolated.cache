@@ -1,0 +1,2 @@
+
+-G Unix Makefiles -DCATKIN_DEVEL_PREFIX=/ws_smpl/src/smpl_ztp/devel_isolated -DCMAKE_INSTALL_PREFIX=/ws_smpl/src/smpl_ztp/install_isolated
