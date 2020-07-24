@@ -64,6 +64,12 @@
 #include "../../../src/collision_space_scene.h"
 #include <sbpl_collision_checking/collision_space.h>
 
+
+#include "std_msgs/MultiArrayLayout.h"
+#include "std_msgs/MultiArrayDimension.h"
+#include "std_msgs/Float32MultiArray.h"
+#include "std_msgs/String.h"
+#include <sstream>
 SBPL_CLASS_FORWARD(SBPLPlanner);
 
 namespace smpl {
@@ -84,7 +90,10 @@ SBPL_CLASS_FORWARD(PlannerInterface);
 class PlannerInterface
 {
 public:
-
+    float vx,vy,vz,px,py,pz,land_px,land_py,land_pz;
+    
+    int to_block=0;
+    int if_get_prection=0;
     PlannerInterface(
         RobotModel* robot,
         CollisionChecker* checker,
@@ -125,6 +134,8 @@ public:
         return std::make_pair(begin(m_heuristics), end(m_heuristics));
     }
 
+    void arrayCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
+    void objCallback(const std_msgs::String::ConstPtr& msg);
     /// @brief Return planning statistics from the last call to solve.
     ///
     /// Possible keys to statistics include:
@@ -174,6 +185,11 @@ protected:
     ForwardKinematicsInterface* m_fk_iface;
 
     PlanningParams m_params;
+
+    ros::NodeHandle nh;
+    ros::Subscriber obj_pos_vec_sub;
+    ros::Subscriber obj_state_sub;
+    ros::Publisher obj_state_pub;
 
     // params
     bool m_initialized;

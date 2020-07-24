@@ -86,6 +86,11 @@
 #include "../collision_space_scene.h"
 #include <sbpl_collision_checking/collision_space.h>
 
+#include "std_msgs/MultiArrayLayout.h"
+#include "std_msgs/MultiArrayDimension.h"
+#include "std_msgs/Float32MultiArray.h"
+
+
 namespace smpl {
 
 const char* PI_LOGGER = "simple";
@@ -320,6 +325,9 @@ PlannerInterface::PlannerInterface(
 
     m_heuristic_factories["workspace_distance"] = MakeWorkspaceDistHeuristic;
     m_planner_factories["arastar_zero"] = MakeARAStarZero;
+
+
+    
 }
 
 PlannerInterface::~PlannerInterface()
@@ -465,6 +473,50 @@ bool PlannerInterface::solve(
     return true;
 }
 
+void PlannerInterface::objCallback(const std_msgs::String::ConstPtr& msg){
+    ROS_INFO("Receive %s", msg->data.c_str());
+    std::stringstream temp_ss;
+    temp_ss << "flying";
+    if(msg->data==temp_ss.str()) {
+    
+        std_msgs::String new_msg;
+        std::stringstream ss;
+        ss << "ToBlock";
+        new_msg.data = ss.str();
+        ROS_INFO("%s", new_msg.data.c_str());
+        obj_state_pub.publish(new_msg);
+        to_block=1;
+    }
+}
+
+void PlannerInterface::arrayCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
+{
+
+	int i = 0;
+    
+	for(std::vector<float>::const_iterator it = array->data.begin(); it != array->data.end(); ++it)
+	{
+		if(i==0) px = *it;
+        else if(i==1) py = *it;
+        else if(i==2) pz = *it;
+        else if(i==3) vx = *it;
+        else if(i==4) vy = *it;
+        else if(i==5) vz = *it;
+		i++;
+	}
+    float landing_time=(0.47-px)/vx;
+    land_py=py+vy*landing_time;
+    land_pz=pz+vz*landing_time+0.5*-2*landing_time*landing_time;
+    
+    if (land_py>0) land_py=0;
+    else if (land_py<-0.3) land_py=-0.3;
+
+    if (land_pz>1.0) land_pz=1.0;
+    else if (land_pz<0.66) land_pz=0.66;
+    ROS_INFO("Landing y: %f z: %f",land_py,land_pz);
+    if_get_prection=1;
+}
+
 bool PlannerInterface::solveZero(
     // TODO: this planning scene is probably not being used in any meaningful way
     smpl::collision::CollisionSpace& cc,
@@ -596,52 +648,55 @@ bool PlannerInterface::solveZero(
         m_zero_planner->PreProcess(initial_positions);
     }
     else {
-        int num_queries = 20;
+        int num_queries = 15;
         double total_time = 0.0;
         double best_time = 10000.0;
         double worst_time = 0.0;
+        sleep(8.0);
         ROS_INFO("Going to run %d random queries", num_queries);
         
         WorkspaceState temp_workspace_state;
         int my_counter=0;
-        for (int i = 0; i < num_queries; ++i) {
+        int execution_counter=0;
+
+        // init publisher and suscriber
+        // ros::init("talker");
+        obj_pos_vec_sub = nh.subscribe<std_msgs::Float32MultiArray>("obj_array", 1, &PlannerInterface::arrayCallback,this);
+        obj_state_sub=nh.subscribe<std_msgs::String>("obj_state", 1, &PlannerInterface::objCallback, this);
+        obj_state_pub = nh.advertise<std_msgs::String>("obj_state", 1);
+        // ros::spinOnce();
+        while(ros::ok()){
             
-            // task_space_base->stateRobotToCoord(goal.angles,my_workspace_coord);
-            // std::cout<<"WORKSPACE COORD22: "<<my_workspace_coord[0]<<", "<<my_workspace_coord[1]<<", "<<my_workspace_coord[2]<<" \n";
-            while (!task_space_->SampleRobotState(goal.angles));
-            // WorkspaceCoord my_workspace_coord;
-            // task_space_base->stateRobotToCoord(goal.angles,my_workspace_coord);
-            task_space_base->stateRobotToWorkspace(goal.angles,temp_workspace_state);
-            // const WorkspaceState temp_ws_coord=my_workspace_coord;
-            // task_space_base->stateWorkspaceToCoord(temp_ws_coord,temp_workspace_state)
-            if(temp_workspace_state[0]>0.412 || temp_workspace_state[0]<0.408 || temp_workspace_state[5]>0.1 || temp_workspace_state[5]<-0.1){
-                i--;
-                my_counter++;
-                if (my_counter%100==0) ROS_INFO("LOOKING FOR NEXT QUERY: %d", my_counter);
+            ros::spinOnce(); 
+            if(to_block==0 || if_get_prection==0) {
+                // ROS_INFO("!!!!!!!!!!!!");
                 continue;
             }
             
+            ROS_INFO("***************Zero time query*****************");
+            // rate.sleep();
+            to_block=0;
+             if_get_prection=0;
+            // task_space_base->stateWorkspaceToRobot(temp_workspace_state,goal.angles);
+            execution_counter++;
+            if(execution_counter>20) break;
+            while (!task_space_->SampleRobotState(goal.angles));
+            
+            task_space_base->stateRobotToWorkspace(goal.angles,temp_workspace_state);
+            temp_workspace_state[0]=0.41;
+            temp_workspace_state[1]=land_py;
+            temp_workspace_state[2]=land_pz;
+            task_space_base->stateWorkspaceToRobot(temp_workspace_state,goal.angles);
+            
+
             m_zero_planner->setStartAndGoal(initial_positions, goal);
 
             auto now = clock::now();
-            ROS_INFO("\n************* QUERY %d ***************", i);
-            ROS_INFO("Zero time query");
-            ROS_INFO("Solve Zero flag 1: %0.3f",goal.pose.translation()[0]);
+            
             m_zero_planner->Query(path);
             
             res.planning_time = to_seconds(clock::now() - now);
 
-            if (res.planning_time < best_time)
-                best_time = res.planning_time;
-            if (res.planning_time > worst_time)
-                worst_time = res.planning_time;
-
-            total_time += res.planning_time;
-            ROS_INFO("ZTP query time: %f", res.planning_time);
-            // postProcessPath(path);
-            SV_SHOW_INFO_NAMED("trajectory", makePathVisualization(path));
-            // ros::Duration(1).sleep();
-            ROS_DEBUG_NAMED(PI_LOGGER, "smoothed path:");
             
             for (size_t pidx = 0; pidx < path.size(); ++pidx) {
                 const auto& point = path[pidx];
@@ -661,10 +716,7 @@ bool PlannerInterface::solveZero(
             }
             
             profilePath(res.trajectory.joint_trajectory);
-        //    removeZeroDurationSegments(traj);
-
-
-            // std::cout<<"PATH SIZE: "<<path.size()<<"     \n";
+       
             size_t pidx = 0;
             do {
                 if(path.size()>0){
@@ -674,23 +726,106 @@ bool PlannerInterface::solveZero(
                         m.ns = "path_animation";
                     }
                     SV_SHOW_INFO(markers);
-                    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
                     pidx++;
                     pidx %= res.trajectory.joint_trajectory.points.size();
+                    if(pidx==0) std::this_thread::sleep_for(std::chrono::milliseconds(700));
                     // ROS_INFO("pidx: %d",pidx);
                 }
             } while (pidx!=0);
-
-
-
-
-            m_res = res; // record the last result
-            // getchar();
+            // sleep(0.8);
+            
         }
-        double mean_time = total_time/num_queries;
-        ROS_INFO("Mean planning time: %f", mean_time);
-        ROS_INFO("Worst planning time: %f", worst_time);
-        ROS_INFO("Best planning time: %f", best_time);
+        // ros::Subscriber obj_state_sub = nh.subscribe("obj_state", 1, chatterCallback);
+
+
+    //     for (int i = 0; i < num_queries; ++i) {
+            
+    //         // task_space_base->stateRobotToCoord(goal.angles,my_workspace_coord);
+    //         // std::cout<<"WORKSPACE COORD22: "<<my_workspace_coord[0]<<", "<<my_workspace_coord[1]<<", "<<my_workspace_coord[2]<<" \n";
+    //         while (!task_space_->SampleRobotState(goal.angles));
+    //         // WorkspaceCoord my_workspace_coord;
+    //         // task_space_base->stateRobotToCoord(goal.angles,my_workspace_coord);
+    //         task_space_base->stateRobotToWorkspace(goal.angles,temp_workspace_state);
+    //         // const WorkspaceState temp_ws_coord=my_workspace_coord;
+    //         // task_space_base->stateWorkspaceToCoord(temp_ws_coord,temp_workspace_state)
+    //         if(temp_workspace_state[0]>0.412 || temp_workspace_state[0]<0.408 || temp_workspace_state[5]>0.1 || temp_workspace_state[5]<-0.1){
+    //             i--;
+    //             my_counter++;
+    //             if (my_counter%100==0) ROS_INFO("LOOKING FOR NEXT QUERY: %d", my_counter);
+    //             continue;
+    //         }
+            
+    //         m_zero_planner->setStartAndGoal(initial_positions, goal);
+
+    //         auto now = clock::now();
+    //         ROS_INFO("\n************* QUERY %d ***************", i);
+    //         ROS_INFO("Zero time query");
+    //         ROS_INFO("Solve Zero flag 1: %0.3f",goal.pose.translation()[0]);
+    //         m_zero_planner->Query(path);
+            
+    //         res.planning_time = to_seconds(clock::now() - now);
+
+    //         if (res.planning_time < best_time)
+    //             best_time = res.planning_time;
+    //         if (res.planning_time > worst_time)
+    //             worst_time = res.planning_time;
+
+    //         total_time += res.planning_time;
+    //         ROS_INFO("ZTP query time: %f", res.planning_time);
+    //         // postProcessPath(path);
+    //         SV_SHOW_INFO_NAMED("trajectory", makePathVisualization(path));
+    //         // ros::Duration(1).sleep();
+    //         ROS_DEBUG_NAMED(PI_LOGGER, "smoothed path:");
+            
+    //         for (size_t pidx = 0; pidx < path.size(); ++pidx) {
+    //             const auto& point = path[pidx];
+    //             ROS_DEBUG_STREAM_NAMED(PI_LOGGER, "  " << pidx << ": " << point);
+    //         }
+            
+    //         convertJointVariablePathToJointTrajectory(
+    //                 path,
+    //                 req.start_state.joint_state.header.frame_id,
+    //                 req.start_state.multi_dof_joint_state.header.frame_id,
+    //                 res.trajectory);
+    //         res.trajectory.joint_trajectory.header.seq = 0;
+    //         res.trajectory.joint_trajectory.header.stamp = ros::Time::now();
+            
+    //         if (!m_params.plan_output_dir.empty()) {
+    //             writePath(res.trajectory_start, res.trajectory);
+    //         }
+            
+    //         profilePath(res.trajectory.joint_trajectory);
+    //     //    removeZeroDurationSegments(traj);
+
+
+    //         // std::cout<<"PATH SIZE: "<<path.size()<<"     \n";
+    //         size_t pidx = 0;
+    //         do {
+    //             if(path.size()>0){
+    //                 auto& point = res.trajectory.joint_trajectory.points[pidx];
+    //                 auto markers = cc.getCollisionRobotVisualization(point.positions);
+    //                 for (auto& m : markers.markers) {
+    //                     m.ns = "path_animation";
+    //                 }
+    //                 SV_SHOW_INFO(markers);
+    //                 std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    //                 pidx++;
+    //                 pidx %= res.trajectory.joint_trajectory.points.size();
+    //                 // ROS_INFO("pidx: %d",pidx);
+    //             }
+    //         } while (pidx!=0);
+
+
+
+
+    //         m_res = res; // record the last result
+    //         // getchar();
+    //     }
+    //     double mean_time = total_time/num_queries;
+    //     ROS_INFO("Mean planning time: %f", mean_time);
+    //     ROS_INFO("Worst planning time: %f", worst_time);
+    //     ROS_INFO("Best planning time: %f", best_time);
     }
     bfs_heuristic.release();    //avoid crash
 

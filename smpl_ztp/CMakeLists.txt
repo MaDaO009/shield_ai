@@ -26,7 +26,8 @@ find_package(
         moveit_ros_planning
         moveit_ros_planning_interface
         trajectory_msgs
-        moveit_msgs)
+        moveit_msgs
+	geometric_shapes)
 find_package(smpl REQUIRED)
 
 find_package(sbpl REQUIRED)
@@ -74,6 +75,8 @@ target_link_libraries(smpl_ztp PUBLIC ${SBPL_LIBRARIES})
 
 add_executable(call_planner_ztp src/call_planner.cpp src/ros/planner_interface.cpp src/collision_space_scene.cpp)
 
+# add_executable(object_updater src/smpl_moveit_object_node.cpp)
+
 target_compile_options(smpl_ztp PUBLIC -std=c++11)
 
 target_include_directories(call_planner_ztp PRIVATE include)
@@ -86,6 +89,17 @@ target_link_libraries(call_planner_ztp PRIVATE smpl_ztp)
 target_link_libraries(call_planner_ztp PRIVATE ${catkin_LIBRARIES})
 target_link_libraries(call_planner_ztp PRIVATE ${SBPL_LIBRARIES})
 target_link_libraries(call_planner_ztp PRIVATE ${Boost_LIBRARIES})
+
+# target_include_directories(object_updater PRIVATE include)
+# target_include_directories(object_updater SYSTEM PRIVATE ${catkin_INCLUDE_DIRS})
+# target_include_directories(object_updater SYSTEM PRIVATE ${Boost_INCLUDE_DIRS})
+# target_include_directories(object_updater SYSTEM PRIVATE ${EIGEN3_INCLUDE_DIR})
+
+
+# target_link_libraries(object_updater PRIVATE smpl_ztp)
+# target_link_libraries(object_updater PRIVATE ${catkin_LIBRARIES})
+# target_link_libraries(object_updater PRIVATE ${SBPL_LIBRARIES})
+# target_link_libraries(object_updater PRIVATE ${Boost_LIBRARIES})
 
 ############################
 # Install smpl_ztp library #
@@ -108,4 +122,8 @@ install(
 install(
     TARGETS call_planner_ztp
     RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+
+# install(
+    # TARGETS object_updater
+    # RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 

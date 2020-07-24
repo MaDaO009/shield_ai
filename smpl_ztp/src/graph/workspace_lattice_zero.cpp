@@ -369,17 +369,17 @@ int WorkspaceLatticeZero::SampleAttractorState(
 bool WorkspaceLatticeZero::SampleRobotState(RobotState& joint_state)
 {
     std::vector<double> workspace_state(6 + freeAngleCount());
-    std::cout<<"SAMPLE Robot state: ";
+    // std::cout<<"SAMPLE Robot state: ";
     for (int i = 0; i < workspace_state.size() ; ++i) {
         workspace_state[i] = m_distribution[i](m_generator);
-        std::cout<<workspace_state[i]<<", ";
+        // std::cout<<workspace_state[i]<<", ";
     }
     while(workspace_state[5]>0.1) workspace_state[5]*=0.5;
     while(workspace_state[5]<-0.1) workspace_state[5]*=0.5;
     // workspace_state[5]= 0.0;
     workspace_state[0]= 0.41;
     
-    std::cout<<"\n";
+    // std::cout<<"\n";
     // normalize and project to center
     // normalize_euler_zyx(&workspace_state[3]);
     WorkspaceCoord workspace_coord;
@@ -423,7 +423,7 @@ int WorkspaceLatticeZero::FindRegionContainingState(const RobotState& joint_stat
     WorkspaceState workspace_state;
     WorkspaceCoord workspace_coord;
     stateRobotToCoord(joint_state, workspace_coord);
-    std::cout<<"FindRegionContainingState WORKSPACE COORD: "<<workspace_coord[0]<<", "<<workspace_coord[1]<<", "<<workspace_coord[2]<<", "<<workspace_coord[3]<<", "<<workspace_coord[4]<<", "<<workspace_coord[5]<<" \n";
+    // std::cout<<"FindRegionContainingState WORKSPACE COORD: "<<workspace_coord[0]<<", "<<workspace_coord[1]<<", "<<workspace_coord[2]<<", "<<workspace_coord[3]<<", "<<workspace_coord[4]<<", "<<workspace_coord[5]<<" \n";
     stateCoordToWorkspace(workspace_coord, workspace_state);
     int query_state_id = createState(workspace_coord);
 
@@ -845,7 +845,7 @@ bool WorkspaceLatticeZero::extractPath(
         }
     }
     
-    ROS_INFO("lattice zero extract path flag Path length: %d", path.size());
+    // ROS_INFO("lattice zero extract path flag Path length: %d", path.size());
     return true;
 }
 

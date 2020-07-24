@@ -1,0 +1,5 @@
+<launch>
+    <arg name="debug" default="false"/>
+    <node pkg="smpl_moveit_object" type="object_updater" name="object_update" output="screen">
+    </node>
+</launch>
