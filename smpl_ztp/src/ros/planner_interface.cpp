@@ -89,7 +89,8 @@
 #include "std_msgs/MultiArrayLayout.h"
 #include "std_msgs/MultiArrayDimension.h"
 #include "std_msgs/Float32MultiArray.h"
-
+#include <cmath>
+#include <tf/transform_datatypes.h>
 
 namespace smpl {
 
@@ -504,7 +505,9 @@ void PlannerInterface::arrayCallback(const std_msgs::Float32MultiArray::ConstPtr
         else if(i==5) vz = *it;
 		i++;
 	}
-    float landing_time=(0.47-px)/vx;
+
+
+    float landing_time=(0.58-px)/vx;
     land_py=py+vy*landing_time;
     land_pz=pz+vz*landing_time+0.5*-2*landing_time*landing_time;
     
@@ -514,6 +517,77 @@ void PlannerInterface::arrayCallback(const std_msgs::Float32MultiArray::ConstPtr
     if (land_pz>1.0) land_pz=1.0;
     else if (land_pz<0.66) land_pz=0.66;
     ROS_INFO("Landing y: %f z: %f",land_py,land_pz);
+
+
+    using namespace std;
+    float g=2;
+    float x_org=-1.5;
+    float y_org=0;
+    float z_org=0.9;
+    float r=2.2;
+
+    float a=0.25*g*g;
+    float b=-g*vz;
+    float c=vz*vz-g*pz+z_org*g+vx*vx+vy*vy;
+    float d=2*px*vx-2*x_org*vx+2*py*vy-2*y_org*vy+2*pz*vz-2*z_org*vz;
+    float e=(px-x_org)*(px-x_org)+(py-y_org)*(py-y_org)+(pz-z_org)*(pz-z_org)-r*r;
+    // ROS_INFO("a: %f b: %f c: %f d: %f e: %f",a,b,c,d,e);
+
+    float p=(8*a*c-3*b*b)/(8*a*a);
+    cout<<p<<endl;
+    float q=(b*b*b-4*a*b*c+8*a*a*d)/(8*a*a*a);
+    float delta_0=c*c-3*b*d+12*a*e;
+    float delta_1=2*c*c*c-9*b*c*d+27*a*d*d+27*b*b*e-72*a*c*e;
+    if (delta_1*delta_1-4*pow(delta_0,3)<0) return;
+    
+
+    float Q=cbrt((delta_1+sqrt(delta_1*delta_1-4*pow(delta_0,3)))/2);
+    if (-p*2/3+a*(Q+delta_0/Q)/3/a<0) return;
+    float S=0.5*sqrt(-p*2/3+(Q+delta_0/Q)/3/a);
+    float landing_time_1=100;
+    float landing_time_2=100;
+    // ROS_INFO("S: %f delta0: %f delta1: %f Q: %f p: %f s^2: %f %f ",S,delta_0,delta_1,Q,p,-p*2/3, a*(Q+delta_0/Q)/3);
+    if (-4.0*S*S-2.0*p+q/S>=0) landing_time_1=-b/4/a-S-0.5*sqrt(-4.0*S*S-2.0*p+q/S);
+    if (-4.0*S*S-2.0*p-q/S>=0) landing_time_2=-b/4/a+S-0.5*sqrt(-4.0*S*S-2.0*p-q/S);
+    
+    // ROS_INFO("Landing time 1: %f 2: %f",landing_time_1,landing_time_2);
+    landing_time=min(landing_time_1,landing_time_2);
+
+    land_px=px+vx*landing_time;
+    land_py=py+vy*landing_time;
+    land_pz=pz+vz*landing_time+0.5*-2*landing_time*landing_time;
+    
+
+//******************************For landing quaterion********************************
+    tf::Vector3 x_vector(1.0, 0.0, 0.0);
+    tf::Vector3 v_vector(-vx,-vy,-(vz-g*landing_time));
+
+    v_vector.normalize();
+    
+    //taking distance from shield to arm into consideration
+    land_px+=v_vector[0]*0.15;
+    land_py+=v_vector[1]*0.15;
+    land_pz+=v_vector[2]*0.15;
+    ROS_INFO("Landing x: %f y: %f z: %f",land_px, land_py,land_pz);
+
+    tf::Vector3 right_vector = v_vector.cross(x_vector);
+    right_vector.normalize();
+    cout<<right_vector[0]<<" "<<right_vector[1]<<" "<<right_vector[2]<<" "<<endl;
+    tf::Quaternion my_qua(right_vector, -1.0*acos(v_vector.dot(x_vector)));
+    my_qua.normalize();
+    cout<<my_qua[0]<<" "<<my_qua[1]<<" "<<my_qua[2]<<" "<<my_qua[3]<<" "<<endl;
+
+    
+    tf::Matrix3x3 mat(my_qua);
+    
+    mat.getRPY(roll, pitch, yaw);
+    q_x=my_qua[0];
+    q_y=my_qua[1];
+    q_z=my_qua[2];
+    q_w=my_qua[3];
+//******************************For landing quaterion********************************
+
+    // flag that indicates we predict to block the obj
     if_get_prection=1;
 }
 
@@ -683,9 +757,16 @@ bool PlannerInterface::solveZero(
             while (!task_space_->SampleRobotState(goal.angles));
             
             task_space_base->stateRobotToWorkspace(goal.angles,temp_workspace_state);
-            temp_workspace_state[0]=0.41;
+
+            // temp_workspace_state[0]=0.41;
+            temp_workspace_state[0]=land_px;
             temp_workspace_state[1]=land_py;
             temp_workspace_state[2]=land_pz;
+            temp_workspace_state[3]=yaw;
+            temp_workspace_state[4]=pitch;
+            temp_workspace_state[5]=roll;
+            // temp_workspace_state[6]=q_w;
+
             task_space_base->stateWorkspaceToRobot(temp_workspace_state,goal.angles);
             
 

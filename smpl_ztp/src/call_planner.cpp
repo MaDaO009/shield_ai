@@ -58,6 +58,8 @@
 
 #include "collision_space_scene.h"
 #include "pr2_allowed_collision_pairs.h"
+#include <shape_msgs/SolidPrimitive.h>
+
 
 void FillGoalConstraint(
     const std::vector<double>& pose,
@@ -697,10 +699,63 @@ int main(int argc, char* argv[])
 //    req.trajectory_constraints;
 //    req.workspace_parameters;
 
-    // plan
+    
     ROS_INFO("Calling solve...");
     moveit_msgs::PlanningScene planning_scene;
     planning_scene.robot_state = start_state;
+
+
+
+    //*******************Adding shield*********************
+    // ros::Publisher planning_scene_diff_publisher = nh.advertise<moveit_msgs::PlanningScene>("planning_scene", 1);
+    // while(planning_scene_diff_publisher.getNumSubscribers() < 1)
+    //     {
+    //     ros::WallDuration sleep_t(0.5);
+    //     sleep_t.sleep();
+    //     }
+
+
+    // moveit_msgs::AttachedCollisionObject attached_object;
+    // attached_object.link_name = "r_wrist_roll_link";
+    // attached_object.touch_links.push_back("r_gripper_palm_link");
+    // attached_object.touch_links.push_back("r_gripper_r_finger_link");
+    // attached_object.touch_links.push_back("r_gripper_l_finger_link");
+    // attached_object.touch_links.push_back("r_gripper_l_finger_tip_link");
+    // /* The header must contain a valid TF frame*/
+    // attached_object.object.header.frame_id = "r_wrist_roll_link";
+    // /* The id of the object */
+    // attached_object.object.id = "box";
+
+    // /* A default pose */
+    // geometry_msgs::Pose pose;
+    // pose.orientation.w = 1.0;
+    // pose.position.x =0.17;
+    // pose.position.y =0;
+    // pose.position.z =0;
+
+    // /* Define a box to be attached */
+    // shape_msgs::SolidPrimitive primitive;
+    // primitive.type = primitive.BOX;
+    // primitive.dimensions.resize(3);
+    // primitive.dimensions[0] = 0.03;
+    // primitive.dimensions[1] = 0.2;
+    // primitive.dimensions[2] = 0.3;
+
+    // attached_object.object.primitives.push_back(primitive);
+    // attached_object.object.primitive_poses.push_back(pose);
+    // attached_object.object.operation = attached_object.object.ADD;
+
+    // planning_scene.world.collision_objects.push_back(attached_object.object);
+    // planning_scene.is_diff = true;
+    // // planning_scene_diff_publisher.publish(planning_scene);
+    // planning_scene.robot_state.attached_collision_objects.push_back(attached_object);
+    // planning_scene_diff_publisher.publish(planning_scene);
+    // planning_scene.robot_state.attached_collision_objects.push_back(attached_object);
+    //*******************Adding shield*********************
+
+
+    
+    // plan
     bool query = false;
     if (!nh.getParam("query", query)) {
         ROS_ERROR("Failed to read 'query' from the param server");

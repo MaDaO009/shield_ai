@@ -39,6 +39,8 @@
 #include <fstream>
 
 // project includes
+#include <ros/ros.h>
+#include <tf/transform_broadcaster.h>
 #include <ros/console.h>
 #include <smpl/angles.h>
 #include <smpl/console/console.h>
@@ -131,10 +133,15 @@ bool WorkspaceLatticeZero::readGoalRegion()
     for (size_t i = 0; i < xlist.size(); ++i) {
         m_max_ws_limits.push_back(xlist[i]);
     }
-    m_max_ws_limits[0]=0.46;
-    m_max_ws_limits[2]=1.03;
-    m_max_ws_limits[5]=0.1;
-    m_min_ws_limits[5]=-0.1;
+    
+    m_max_ws_limits[0]=0.75;
+    m_max_ws_limits[2]=1.63;
+    m_max_ws_limits[3]=1;
+    m_min_ws_limits[3]=-1;
+    m_max_ws_limits[4]=1;
+    m_min_ws_limits[4]=-1;
+    m_max_ws_limits[5]=1;
+    m_min_ws_limits[5]=-1;
     // normalize [-pi,pi]x[-pi/2,pi/2]x[-pi,pi]
     // center of cell
     WorkspaceCoord limits_coord(6 + freeAngleCount());
@@ -323,6 +330,7 @@ int WorkspaceLatticeZero::SampleAttractorState(
 
         RobotState joint_state;
         if (!SampleRobotState(joint_state)) {
+            
             continue;
         }
         // WorkspaceState workspace_state;
@@ -355,7 +363,7 @@ int WorkspaceLatticeZero::SampleAttractorState(
         if (!RobotPlanningSpace::setGoal(gc)) {
             ROS_ERROR("Set new attractor goal failed");
         }
-
+        ROS_INFO("!!!!");
         auto* vis_name = "attractor_config";
         SV_SHOW_INFO_NAMED(vis_name, getStateVisualization(joint_state, vis_name));
         // m_ik_seed = joint_state;
@@ -374,10 +382,20 @@ bool WorkspaceLatticeZero::SampleRobotState(RobotState& joint_state)
         workspace_state[i] = m_distribution[i](m_generator);
         // std::cout<<workspace_state[i]<<", ";
     }
-    while(workspace_state[5]>0.1) workspace_state[5]*=0.5;
-    while(workspace_state[5]<-0.1) workspace_state[5]*=0.5;
+    while(workspace_state[5]>1) workspace_state[5]*=0.5;
+    while(workspace_state[5]<-1) workspace_state[5]*=0.5;
+    while(workspace_state[4]>1) workspace_state[5]*=0.5;
+    while(workspace_state[4]<-1) workspace_state[5]*=0.5;
+    while(workspace_state[3]>1) workspace_state[5]*=0.5;
+    while(workspace_state[3]<-1) workspace_state[5]*=0.5;
     // workspace_state[5]= 0.0;
-    workspace_state[0]= 0.41;
+    workspace_state[0]= 0.55;
+    workspace_state[1]= -0.10;
+    workspace_state[2]= 0.90;
+    workspace_state[3]= 0;
+    workspace_state[4]= 0;
+    workspace_state[5]= 0;
+    workspace_state[6]= 0;
     
     // std::cout<<"\n";
     // normalize and project to center
@@ -483,12 +501,41 @@ bool WorkspaceLatticeZero::IsWorkspaceStateInGoalRegion(const WorkspaceState& st
 {
     double eps = 0.0001;
     // m_max_ws_limits[2]=1.03;
+    // take distance to shield into accout
+    tf::Matrix3x3 obs_mat;
+    tfScalar yaw=state[3];
+    obs_mat.setEulerYPR(state[3], state[4], state[5]);
+
+    tf::Quaternion rotation;
+    obs_mat.getRotation(rotation);
+
+    // tf::Quaternion rotation(state[3], state[4], state[5], state[6]);
+    tf::Vector3 vector(0.15, 0, 0);
+    tf::Vector3 rotated_vector = tf::quatRotate(rotation, vector);
+    // for (int i=0;i<3;i++) state[i]+=rotated_vector[i];
     for (int i = 0; i < state.size(); ++i) {
-        if (state[i] < m_min_ws_limits[i] - eps || state[i] > m_max_ws_limits[i] + eps) {
-            SMPL_DEBUG_NAMED("graph", "violates start region limits: %d, val: %f, min limit: %f, max limit: %f", i, state[i], m_min_ws_limits[i], m_max_ws_limits[i]);
-            return false;
+        if (i<3){
+            // ROS_INFO("i: %d, val: %f",i,state[i]+rotated_vector[i]);
+            if (state[i]+rotated_vector[i] < m_min_ws_limits[i] - eps || state[i]+rotated_vector[i] > m_max_ws_limits[i] + eps) {
+                
+                SMPL_DEBUG_NAMED("graph", "violates start region limits: %d, val: %f, min limit: %f, max limit: %f", i, state[i], m_min_ws_limits[i], m_max_ws_limits[i]);
+                return false;
+            }
+        }
+        else{
+            if (state[i] < m_min_ws_limits[i] - eps || state[i] > m_max_ws_limits[i] + eps) {
+                SMPL_DEBUG_NAMED("graph", "violates start region limits: %d, val: %f, min limit: %f, max limit: %f", i, state[i], m_min_ws_limits[i], m_max_ws_limits[i]);
+                return false;
+            }
         }
     }
+    // ROS_INFO("VALID except!!!!!!!");
+    double x=state[0]+rotated_vector[0];
+    double y=state[1]+rotated_vector[1];
+    double z=state[2]+rotated_vector[2];
+    if ((x+1.5)*(x+1.5)+(y-0.1)*(y-0.1)+(z-0.9)*(z-0.9)<2.15*2.15 ||(x+1.5)*(x+1.5)+(y+0.1)*(y+0.1)+(z-0.9)*(z-0.9)>2.25*2.25) return false;
+    // ROS_INFO("VALID!!!!!!!");
+
     return true;
 }
 
@@ -567,7 +614,7 @@ int WorkspaceLatticeZero::SetAttractorState()
     // m_ik_seed = state;
     // ROS_INFO("New attractor state set");
 
-    if(workspace_state[0]>=0.408 && workspace_state[0]<=0.412 && workspace_state[5]<=0.1 && workspace_state[5]>=-0.1){
+    if(IsWorkspaceStateInGoalRegion(workspace_state)){
         printCounter=(printCounter+1)%100;
         if (printCounter==0) std::cout<<"COORD: "<<workspace_state[0]<<", "<<workspace_state[1]<<", "<<workspace_state[2]<<", "<<workspace_state[3]<<", "<<workspace_state[4]<<", "<<workspace_state[5]<<"\n";
         return attractor_state_id;
@@ -612,7 +659,7 @@ int WorkspaceLatticeZero::SetInvalidStartState()
     // SV_SHOW_INFO_NAMED(vis_name, getStateVisualization(state, vis_name));
     // m_ik_seed = state;
     // ROS_INFO("Invalid Start State set");
-    if(workspace_state[0]>=0.408 && workspace_state[0]<=0.412 && workspace_state[5]<=0.1 && workspace_state[5]>=-0.1 ) return iv_state_id;
+    if(IsWorkspaceStateInGoalRegion(workspace_state) ) return iv_state_id;
     
     return -iv_state_id;
 }

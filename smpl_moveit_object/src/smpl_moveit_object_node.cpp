@@ -60,7 +60,7 @@
                shape_msgs::SolidPrimitive primitive;
                primitive.type=primitive.SPHERE;
                primitive.dimensions.resize(1); //dimensions is a vector with 3 element spaces assigned to it
-               primitive.dimensions[0] =0.1; //length on the x-axis
+               primitive.dimensions[0] =0.06; //length on the x-axis
                //     primitive.dimensions[1] =0.1; //length on the y-axis
                //     primitive.dimensions[2] =0.1; //length on the z-axis
                
@@ -104,6 +104,13 @@
 		     obj_pos_vec_pub.publish(array);
                }
           
+          bool get_if_query(){
+               bool query;
+               if (!nh.getParam("query", query)) {
+                    ROS_ERROR("Failed to read 'query' from the param server");
+               }
+               return query;
+          }
 
           void updateCollisionObject()
                {
@@ -188,10 +195,13 @@
 
           int main(int argc, char** argv)
           {
+               
                ros::init(argc, argv, "add_collision_object");
                std::cout<<"Initialized..." << std::endl;
                collisionObjectAdder coAdder; 
-
+               bool query=coAdder.get_if_query();
+               
+               if (query==false) return 0;
                coAdder.addCollisionObject();
 
                while (ros::ok()){

@@ -91,7 +91,9 @@ class PlannerInterface
 {
 public:
     float vx,vy,vz,px,py,pz,land_px,land_py,land_pz;
-    
+    float q_x,q_y,q_z,q_w;
+    double roll, pitch, yaw;
+
     int to_block=0;
     int if_get_prection=0;
     PlannerInterface(

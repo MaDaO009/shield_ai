@@ -407,6 +407,7 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
         
         while (!m_task_space->m_valid_front.empty()) {
             valid_counter=(valid_counter+1)%1000;
+            // ROS_INFO("start!!!!!!!!!!!!!!!!!!!!!!!!!");
             // region_counter++;
             // auto entry = m_task_space->m_valid_front.front();
             // WorkspaceState attractor = *it;
@@ -414,6 +415,7 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
         	int attractor_state_id = m_task_space->SetAttractorState();
             if (attractor_state_id<0) {
                 // std::vector<int> open;
+                // ROS_INFO("SKIP valid STATE");
                 // m_planner_zero->Find_next_states(-attractor_state_id);
                 // m_planner_zero->get_frontier_stateids(open);
 
