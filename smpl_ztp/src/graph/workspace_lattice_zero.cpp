@@ -135,13 +135,24 @@ bool WorkspaceLatticeZero::readGoalRegion()
     }
     
     m_max_ws_limits[0]=0.75;
-    m_max_ws_limits[2]=1.63;
-    m_max_ws_limits[3]=1;
-    m_min_ws_limits[3]=-1;
-    m_max_ws_limits[4]=1;
-    m_min_ws_limits[4]=-1;
-    m_max_ws_limits[5]=1;
-    m_min_ws_limits[5]=-1;
+
+    m_max_ws_limits[1]=0.03;
+    m_min_ws_limits[1]=-0.8;
+
+    m_max_ws_limits[2]=1.65;
+    m_min_ws_limits[2]=0.35;
+
+    m_max_ws_limits[3]=0.1;
+    m_min_ws_limits[3]=-0.1;
+
+    m_max_ws_limits[4]=0.7;
+    m_min_ws_limits[4]=-0.7;
+
+    m_max_ws_limits[5]=0.7;
+    m_min_ws_limits[5]=-0.7;
+
+    m_max_ws_limits[6]=0.5;
+    m_min_ws_limits[6]=-0.5;
     // normalize [-pi,pi]x[-pi/2,pi/2]x[-pi,pi]
     // center of cell
     WorkspaceCoord limits_coord(6 + freeAngleCount());
@@ -311,8 +322,9 @@ bool WorkspaceLatticeZero::IsStateCovered(bool valid, const int state_id)
         RobotHeuristic* h = heuristic(0);   //TODO: Pick the correct heuristic the right way
         int dsum = h->GetFromToHeuristic(state_id, center_state_id);
         // if (valid)
-        //     printf("dsum %d radius %u\n", dsum, r.radius);
+            // printf("dsum %d radius %u\n", dsum, r.radius);
         if (dsum < r.radius || dsum == 0) {
+            
             return true;
         }
     }
@@ -390,8 +402,8 @@ bool WorkspaceLatticeZero::SampleRobotState(RobotState& joint_state)
     while(workspace_state[3]<-1) workspace_state[5]*=0.5;
     // workspace_state[5]= 0.0;
     workspace_state[0]= 0.55;
-    workspace_state[1]= -0.10;
-    workspace_state[2]= 0.90;
+    workspace_state[1]= -0.0045;
+    workspace_state[2]= 0.8955;
     workspace_state[3]= 0;
     workspace_state[4]= 0;
     workspace_state[5]= 0;
@@ -501,41 +513,51 @@ bool WorkspaceLatticeZero::IsWorkspaceStateInGoalRegion(const WorkspaceState& st
 {
     double eps = 0.0001;
     // m_max_ws_limits[2]=1.03;
-    // take distance to shield into accout
+    //****************** take distance to shield into accout***************************
     tf::Matrix3x3 obs_mat;
     tfScalar yaw=state[3];
     obs_mat.setEulerYPR(state[3], state[4], state[5]);
 
     tf::Quaternion rotation;
     obs_mat.getRotation(rotation);
-
     // tf::Quaternion rotation(state[3], state[4], state[5], state[6]);
     tf::Vector3 vector(0.15, 0, 0);
     tf::Vector3 rotated_vector = tf::quatRotate(rotation, vector);
-    // for (int i=0;i<3;i++) state[i]+=rotated_vector[i];
+    //****************** take distance to shield into accout***************************
+    
+    //****************** Angle to make it a spheral cap***************************
+    double x=state[0]+rotated_vector[0];
+    double y=state[1]+rotated_vector[1];
+    double z=state[2]+rotated_vector[2];
+    const tf::Vector3 x_axis(1,0,0);
+    tf::Vector3 pos_to_org_vector(x+1.5,y,z-0.9);
+    pos_to_org_vector.normalize();
+    float angle = acos(pos_to_org_vector.dot(x_axis));
+    // ROS_INFO("Stuck at angle %f", angle);
+    if (angle>0.35) return false;
+    //****************** Angle to make it a spheral cap***************************
     for (int i = 0; i < state.size(); ++i) {
         if (i<3){
             // ROS_INFO("i: %d, val: %f",i,state[i]+rotated_vector[i]);
             if (state[i]+rotated_vector[i] < m_min_ws_limits[i] - eps || state[i]+rotated_vector[i] > m_max_ws_limits[i] + eps) {
-                
+                // ROS_INFO("Stuck at %d", i);
                 SMPL_DEBUG_NAMED("graph", "violates start region limits: %d, val: %f, min limit: %f, max limit: %f", i, state[i], m_min_ws_limits[i], m_max_ws_limits[i]);
                 return false;
             }
         }
         else{
             if (state[i] < m_min_ws_limits[i] - eps || state[i] > m_max_ws_limits[i] + eps) {
+                // ROS_INFO("Stuck at %d   %f", i,m_min_ws_limits[i]);
                 SMPL_DEBUG_NAMED("graph", "violates start region limits: %d, val: %f, min limit: %f, max limit: %f", i, state[i], m_min_ws_limits[i], m_max_ws_limits[i]);
                 return false;
             }
         }
     }
-    // ROS_INFO("VALID except!!!!!!!");
-    double x=state[0]+rotated_vector[0];
-    double y=state[1]+rotated_vector[1];
-    double z=state[2]+rotated_vector[2];
-    if ((x+1.5)*(x+1.5)+(y-0.1)*(y-0.1)+(z-0.9)*(z-0.9)<2.15*2.15 ||(x+1.5)*(x+1.5)+(y+0.1)*(y+0.1)+(z-0.9)*(z-0.9)>2.25*2.25) return false;
-    // ROS_INFO("VALID!!!!!!!");
-
+    // Check if it's on the sphere;
+    // ROS_INFO("vector: (%f, %f, %f)  ANGLE: %f",pos_to_org_vector[0],pos_to_org_vector[1],pos_to_org_vector[2],angle);
+    if ((x+1.5)*(x+1.5)+y*y+(z-0.9)*(z-0.9)<2.195*2.195 ||(x+1.5)*(x+1.5)+(y+0.1)*(y+0.1)+(z-0.9)*(z-0.9)>2.205*2.205) return false;
+    
+    // ROS_INFO("vector: (%f, %f, %f)  ANGLE: %f",pos_to_org_vector[0],pos_to_org_vector[1],pos_to_org_vector[2],angle);
     return true;
 }
 
@@ -615,8 +637,9 @@ int WorkspaceLatticeZero::SetAttractorState()
     // ROS_INFO("New attractor state set");
 
     if(IsWorkspaceStateInGoalRegion(workspace_state)){
-        printCounter=(printCounter+1)%100;
-        if (printCounter==0) std::cout<<"COORD: "<<workspace_state[0]<<", "<<workspace_state[1]<<", "<<workspace_state[2]<<", "<<workspace_state[3]<<", "<<workspace_state[4]<<", "<<workspace_state[5]<<"\n";
+        printCounter=(printCounter+1)%1000;
+        if (printCounter==1) std::cout<<"COORD: "<<workspace_state[0]<<", "<<workspace_state[1]<<", "<<workspace_state[2]<<", "<<workspace_state[3]<<", "<<workspace_state[4]\
+        <<", "<<workspace_state[5]<<", "<<workspace_state[6]<<"\n";
         return attractor_state_id;
     }
     

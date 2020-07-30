@@ -384,7 +384,7 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
     if (m_pp_planner != "ARAStar")
         InitMoveitOMPL();
 
-    unsigned int radius_max_v = 50;
+    unsigned int radius_max_v = 300;
     unsigned int radius_max_i = 1000;
     m_task_space->PassRegions(&m_regions, &m_iregions);
 
@@ -428,7 +428,7 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
                 continue; //Not in our target goal regoin
             }
             
-            if (/*!m_task_space->IsStateCovered(true, attractor_state_id)*/
+            if (!m_task_space->IsStateCovered(true, attractor_state_id) &&
                 !m_planner_zero->is_state_covered(attractor_state_id) /*&&
                 m_bad_attractors.find(attractor) == m_bad_attractors.end()*/) {
                 m_task_space->VisualizePoint(sampled_state_id, "attractor");
