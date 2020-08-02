@@ -489,7 +489,11 @@ void PlannerInterface::objCallback(const std_msgs::String::ConstPtr& msg){
         to_block=1;
     }
 }
-
+float roundfloat(float var) 
+{ 
+    float value = (int)(var * 100 + .5); 
+    return (float)value / 100; 
+} 
 void PlannerInterface::arrayCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 {
 
@@ -506,25 +510,13 @@ void PlannerInterface::arrayCallback(const std_msgs::Float32MultiArray::ConstPtr
 		i++;
 	}
 
-
-    float landing_time=(0.58-px)/vx;
-    land_py=py+vy*landing_time;
-    land_pz=pz+vz*landing_time+0.5*-2*landing_time*landing_time;
-    
-    if (land_py>0) land_py=0;
-    else if (land_py<-0.3) land_py=-0.3;
-
-    if (land_pz>1.0) land_pz=1.0;
-    else if (land_pz<0.66) land_pz=0.66;
-    ROS_INFO("Landing y: %f z: %f",land_py,land_pz);
-
-
     using namespace std;
+    float landing_time;
     float g=2;
-    float x_org=-1.5;
+    float x_org=-0.4;
     float y_org=0;
     float z_org=0.9;
-    float r=2.2;
+    float r=1.26;
 
     float a=0.25*g*g;
     float b=-g*vz;
@@ -555,41 +547,70 @@ void PlannerInterface::arrayCallback(const std_msgs::Float32MultiArray::ConstPtr
 
     land_px=px+vx*landing_time;
     land_py=py+vy*landing_time;
-    land_pz=pz+vz*landing_time+0.5*-2*landing_time*landing_time;
+    land_pz=pz+vz*landing_time+0.5*-g*landing_time*landing_time;
     
 
 //******************************For landing quaterion********************************
     tf::Vector3 x_vector(1.0, 0.0, 0.0);
+
+    // This is to let the shield be perpendicular to the object v
     tf::Vector3 v_vector(-vx,-vy,-(vz-g*landing_time));
 
+    // This is to let the shield be perpendicular to the plane
+    // tf::Vector3 v_vector(x_org-land_px,y_org-land_py,z_org-land_pz);
+
     v_vector.normalize();
+    ROS_INFO("Landing1  x: %f y: %f z: %f",land_px, land_py,land_pz);
     
-    //taking distance from shield to arm into consideration
-    land_px+=v_vector[0]*0.15;
-    land_py+=v_vector[1]*0.15;
-    land_pz+=v_vector[2]*0.15;
-    ROS_INFO("Landing x: %f y: %f z: %f",land_px, land_py,land_pz);
 
     tf::Vector3 right_vector = v_vector.cross(x_vector);
     right_vector.normalize();
     cout<<right_vector[0]<<" "<<right_vector[1]<<" "<<right_vector[2]<<" "<<endl;
     tf::Quaternion my_qua(right_vector, -1.0*acos(v_vector.dot(x_vector)));
     my_qua.normalize();
-    cout<<my_qua[0]<<" "<<my_qua[1]<<" "<<my_qua[2]<<" "<<my_qua[3]<<" "<<endl;
+    
 
     
     tf::Matrix3x3 mat(my_qua);
     
-    mat.getRPY(roll, pitch, yaw);
-    q_x=my_qua[0];
-    q_y=my_qua[1];
-    q_z=my_qua[2];
-    q_w=my_qua[3];
-//******************************For landing quaterion********************************
+    mat.getEulerYPR(yaw,pitch,roll);
+    if (roll>=1.57) roll-=3.14;
+    if (yaw>=1.57) yaw-=3.14;
+    if (pitch>=1.57) pitch-=3.14;
 
+    if (roll<-1.57) roll+=3.14;
+    if (yaw<-1.57) yaw+=3.14;
+    if (pitch<-1.57) pitch+=3.14;
+    // while (roll>0.5) roll-=3.14;
+    // while (roll<-0.5) roll+=3.14;
+    // while (pitch>0.5) pitch-=3.14;
+    // while (pitch<-0.5) pitch+=3.14;
+    // yaw=0;
+    int temp_roll=roll/M_PI*18;
+    int temp_yaw=yaw/M_PI*18;
+    int temp_pitch=pitch/M_PI*18;
+    yaw=temp_yaw*M_PI/18.0;
+    pitch=temp_pitch*M_PI/18.0;
+    roll=temp_roll*M_PI/18.0;
+    mat.setEulerYPR(yaw,pitch,roll);
+    // tf::Vector3 x_vector2(-1.0, 0.0, 0.0);
+    tf::Vector3 delta_vector=mat*x_vector;
+    
+
+    //taking distance from shield to arm into consideration
+    land_px-=delta_vector[0]*0.15;
+    land_py-=delta_vector[1]*0.15;
+    land_pz-=delta_vector[2]*0.15;
+    // land_px=roundfloat(land_px);
+    // land_py=roundfloat(land_py);
+    // land_pz=roundfloat(land_pz);
+    ROS_INFO("Landing x: %f y: %f z: %f",land_px, land_py,land_pz);
+    cout<<yaw<<" "<<pitch<<" "<<roll<<endl;
     // flag that indicates we predict to block the obj
     if_get_prection=1;
 }
+
+
 
 bool PlannerInterface::solveZero(
     // TODO: this planning scene is probably not being used in any meaningful way
@@ -726,7 +747,7 @@ bool PlannerInterface::solveZero(
         double total_time = 0.0;
         double best_time = 10000.0;
         double worst_time = 0.0;
-        sleep(8.0);
+        // sleep(8.0);
         ROS_INFO("Going to run %d random queries", num_queries);
         
         WorkspaceState temp_workspace_state;
@@ -762,10 +783,12 @@ bool PlannerInterface::solveZero(
             temp_workspace_state[0]=land_px;
             temp_workspace_state[1]=land_py;
             temp_workspace_state[2]=land_pz;
-            temp_workspace_state[3]=yaw;
+            temp_workspace_state[3]=0;
+            // temp_workspace_state[4]=0;
+            // temp_workspace_state[5]=0;
             temp_workspace_state[4]=pitch;
             temp_workspace_state[5]=roll;
-            // temp_workspace_state[6]=q_w;
+            temp_workspace_state[6]=0.22;
 
             task_space_base->stateWorkspaceToRobot(temp_workspace_state,goal.angles);
             
@@ -815,7 +838,6 @@ bool PlannerInterface::solveZero(
                 }
             } while (pidx!=0);
             // sleep(0.8);
-            
         }
         // ros::Subscriber obj_state_sub = nh.subscribe("obj_state", 1, chatterCallback);
 

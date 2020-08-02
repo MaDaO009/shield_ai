@@ -581,15 +581,17 @@ int main(int argc, char* argv[])
     scene.SetCollisionSpace(&cc);
 
     std::string object_filename;
-    ph.param<std::string>("object_filename", object_filename, "");
+    // comment all object
+    // ph.param<std::string>("object_filename", object_filename, "");
 
     // read in collision objects from file and add to the scene
-    if (!object_filename.empty()) {
-        auto objects = GetCollisionObjects(object_filename, planning_frame);
-        for (auto& object : objects) {
-            scene.ProcessCollisionObjectMsg(object);
-        }
-    }
+    // if (!object_filename.empty()) {
+    //     auto objects = GetCollisionObjects(object_filename, planning_frame);
+    //     for (auto& object : objects) {
+    //         scene.ProcessCollisionObjectMsg(object);
+    //     }
+    // }
+    // else ROS_INFO("NO OBJECT \n\n\n\n\n");
 
     // read in start state from file and update the scene
     moveit_msgs::RobotState start_state;
@@ -756,6 +758,7 @@ int main(int argc, char* argv[])
 
     
     // plan
+    sleep(5);
     bool query = false;
     if (!nh.getParam("query", query)) {
         ROS_ERROR("Failed to read 'query' from the param server");

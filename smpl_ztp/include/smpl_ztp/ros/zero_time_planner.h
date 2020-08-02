@@ -81,7 +81,7 @@ private:
     void InitMoveitOMPL();
     bool PlanPathFromStartToAttractorOMPL(const RobotState& attractor, std::vector<RobotState>& path);
     bool PlanPathFromStartToAttractorSMPL(const RobotState& attractor, std::vector<RobotState>& path);
-
+    // float roundfloat(float var);
     ros::NodeHandle m_nh;
     std::string m_pp_planner;
 
@@ -111,6 +111,7 @@ private:
     moveit_msgs::DisplayTrajectory display_trajectory;
     void WriteRegions();
     void ReadRegions();
+    
 };
 
 } // namespace smpl

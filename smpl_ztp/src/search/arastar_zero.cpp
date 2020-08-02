@@ -681,9 +681,13 @@ unsigned int ARAStarZero::compute_reachability(const unsigned int r_max, int att
 
 void ARAStarZero::get_frontier_stateids(std::vector<int>& state_ids)
 {
+    // int counter=0;
     for (auto it = m_open.begin(); it != m_open.end(); ++it) {
         state_ids.push_back((*it)->state_id);
+        m_task_space->VisualizePoint((*it)->state_id, "open");
+        // counter++;
     }
+    // ROS_INFO("COUNT %d",counter);
 }
 
 int ARAStarZero::search_for_valid_uncovered_states(

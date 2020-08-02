@@ -384,7 +384,7 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
     if (m_pp_planner != "ARAStar")
         InitMoveitOMPL();
 
-    unsigned int radius_max_v = 300;
+    unsigned int radius_max_v = 60;
     unsigned int radius_max_i = 1000;
     m_task_space->PassRegions(&m_regions, &m_iregions);
 
@@ -406,6 +406,7 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
         int invalid_counter=0;
         
         while (!m_task_space->m_valid_front.empty()) {
+            // sleep(10);
             valid_counter=(valid_counter+1)%1000;
             // ROS_INFO("start!!!!!!!!!!!!!!!!!!!!!!!!!");
             // region_counter++;
@@ -429,9 +430,10 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
             }
             
             if (!m_task_space->IsStateCovered(true, attractor_state_id) &&
-                !m_planner_zero->is_state_covered(attractor_state_id) /*&&
+                !m_planner_zero->is_state_covered(attractor_state_id) &&
+                m_task_space->IsStateValid(attractor_state_id) /*&&
                 m_bad_attractors.find(attractor) == m_bad_attractors.end()*/) {
-                m_task_space->VisualizePoint(sampled_state_id, "attractor");
+                m_task_space->VisualizePoint(attractor_state_id, "attractor");
                 std::vector<RobotState> path;
                 // std::vector<robot_state::RobotState> path;
                 
@@ -474,8 +476,10 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
                 r.path = path;
                 m_regions.push_back(r);
                 // std::cout <<"Region path length: "<<path.size()<<"\n";
-                if(m_regions.size()%50==0) ROS_INFO("Radius %d, Regions so far %zu", radius, m_regions.size());
-
+                // if(m_regions.size()%50==0) ROS_INFO("Radius %d, Regions so far %zu  valid front %zu", radius, m_regions.size(),m_task_space->m_valid_front.size());
+                ROS_INFO("Radius %d Regions so far %zu valid front %zu", radius, m_regions.size(),m_task_space->m_valid_front.size());
+                ROS_INFO("COORD: %0.2f %0.2f %0.2f %0.2f %0.2f %0.2f %0.2f",r.state[0],r.state[1],r.state[2],r.state[3],r.state[4],r.state[5],r.state[6]);
+                
                 // if (radius == 336) {
                 //     printf("stop\n");
                 //     getchar();
@@ -486,7 +490,7 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
 
                 std::vector<int> open;
                 m_planner_zero->get_frontier_stateids(open);
-
+                // ROS_INFO("Add %zu to valid front",open.size());
                 // std::vector<WorkspaceState> valid_states;
                 // std::vector<WorkspaceState> invalid_states;
                 m_task_space->FillFrontierLists(open);
@@ -535,7 +539,7 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
                 m_task_space->GetWorkspaceState(iv_start_state_id, r.state);
                 m_iregions.push_back(r);
 
-                ROS_INFO("Radius %d, IRegions so far %zu", radius, m_iregions.size());
+                ROS_INFO("Radius %d, IRegions so far %zu  invalid front %zu", radius, m_iregions.size(),m_task_space->m_invalid_front.size());
 
                 // m_task_space->PruneCoveredStates(m_task_space->m_valid_front);
                 // m_task_space->PruneCoveredStates(m_task_space->m_invalid_front);
@@ -718,7 +722,7 @@ void ZeroTimePlanner::WriteRegions()
     });
 
 	ROS_INFO("Writing regions to file");
-    boost::filesystem::path myFile = boost::filesystem::current_path() / "myfile.dat";
+    boost::filesystem::path myFile = boost::filesystem::current_path() / "myfile2.dat";
     boost::filesystem::ofstream ofs(myFile);
     boost::archive::text_oarchive ta(ofs);
     ta << m_regions;
@@ -729,7 +733,7 @@ void ZeroTimePlanner::ReadRegions()
 	ROS_INFO("Reading regions from file");
     // getchar();
     try {
-        boost::filesystem::path myFile = boost::filesystem::current_path() / "myfile.dat";
+        boost::filesystem::path myFile = boost::filesystem::current_path() / "myfile2.dat";
         boost::filesystem::ifstream ifs(myFile/*.native()*/);
         boost::archive::text_iarchive ta(ifs);
         ta >> m_regions;

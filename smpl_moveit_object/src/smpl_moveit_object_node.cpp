@@ -29,7 +29,7 @@
           float v_z=1.7;
           float p_x=4;
           float p_y=0;
-          float p_z=1;
+          float p_z=0.8;
           
 
      public:
@@ -154,10 +154,10 @@
                sleep(1.0);
                p_x=4+fRand(-0.1,0.1);
                p_y=-0.1+fRand(-0.1,0.1);
-               p_z=1+fRand(-0.1,0.1);
+               p_z=0.8+fRand(-0.1,0.1);
                v_z=1.7+fRand(-0.05,0.05);
                v_x=fRand(-2.05,-1.95);
-               v_y=fRand(-0.03,0.03);
+               v_y=fRand(-0.1,0.1);
 
                std_msgs::String msg;
 

@@ -159,6 +159,8 @@ public:
     void PruneCoveredStates(std::vector<WorkspaceState>& states);
     void FillFrontierLists(
         const std::vector<int>& state_ids);
+    void FillFrontierLists(
+        const std::vector<int>& state_ids, int attractor_id);
     void GetWorkspaceState(const int state_id, WorkspaceState& workspace_state);
     void GetJointState(const int state_id, RobotState& joint_state);
     int SetAttractorState();

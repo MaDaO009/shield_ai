@@ -134,7 +134,7 @@ bool WorkspaceLatticeZero::readGoalRegion()
         m_max_ws_limits.push_back(xlist[i]);
     }
     
-    m_max_ws_limits[0]=0.75;
+    m_max_ws_limits[0]=0.95;
 
     m_max_ws_limits[1]=0.03;
     m_min_ws_limits[1]=-0.8;
@@ -142,17 +142,18 @@ bool WorkspaceLatticeZero::readGoalRegion()
     m_max_ws_limits[2]=1.65;
     m_min_ws_limits[2]=0.35;
 
-    m_max_ws_limits[3]=0.1;
-    m_min_ws_limits[3]=-0.1;
+    m_max_ws_limits[3]=0.0;
+    m_min_ws_limits[3]=-0.0;
 
-    m_max_ws_limits[4]=0.7;
-    m_min_ws_limits[4]=-0.7;
+    m_max_ws_limits[4]=0.8;
+    m_min_ws_limits[4]=-0.8;
 
-    m_max_ws_limits[5]=0.7;
-    m_min_ws_limits[5]=-0.7;
+    m_max_ws_limits[5]=0.18;
+    m_min_ws_limits[5]=-0.18;
 
-    m_max_ws_limits[6]=0.5;
-    m_min_ws_limits[6]=-0.5;
+    m_max_ws_limits[6]=0.23;
+    m_min_ws_limits[6]=0;
+
     // normalize [-pi,pi]x[-pi/2,pi/2]x[-pi,pi]
     // center of cell
     WorkspaceCoord limits_coord(6 + freeAngleCount());
@@ -228,6 +229,7 @@ bool WorkspaceLatticeZero::IsStateValid(int state_id)
 
     if (!stateWorkspaceToRobot(workspace_state, entry->state)) {
         // ROS_WARN("IK failed");
+        // ROS_INFO("IK failed");
         return false;
     }
     // SMPL_INFO_STREAM_NAMED("graph.expands", "  seeed state: " << m_ik_seed);
@@ -239,6 +241,10 @@ bool WorkspaceLatticeZero::IsStateValid(int state_id)
         return false;
     }
 
+    if(!IsWorkspaceStateInGoalRegion(workspace_state)) {
+        ROS_INFO("!!!!!!");
+        return false;
+    }
     // no need right?
     // if (!robot()->checkJointLimits(entry->state)) {
     //     return false;
@@ -401,9 +407,9 @@ bool WorkspaceLatticeZero::SampleRobotState(RobotState& joint_state)
     while(workspace_state[3]>1) workspace_state[5]*=0.5;
     while(workspace_state[3]<-1) workspace_state[5]*=0.5;
     // workspace_state[5]= 0.0;
-    workspace_state[0]= 0.55;
-    workspace_state[1]= -0.0045;
-    workspace_state[2]= 0.8955;
+    workspace_state[0]= 0.71;
+    workspace_state[1]= 0.00;
+    workspace_state[2]= 0.90;
     workspace_state[3]= 0;
     workspace_state[4]= 0;
     workspace_state[5]= 0;
@@ -455,6 +461,7 @@ int WorkspaceLatticeZero::FindRegionContainingState(const RobotState& joint_stat
     stateRobotToCoord(joint_state, workspace_coord);
     // std::cout<<"FindRegionContainingState WORKSPACE COORD: "<<workspace_coord[0]<<", "<<workspace_coord[1]<<", "<<workspace_coord[2]<<", "<<workspace_coord[3]<<", "<<workspace_coord[4]<<", "<<workspace_coord[5]<<" \n";
     stateCoordToWorkspace(workspace_coord, workspace_state);
+    if (workspace_state[6]!=0.21) workspace_state[6] =0.21;
     int query_state_id = createState(workspace_coord);
 
     // Collision check`
@@ -506,12 +513,16 @@ bool WorkspaceLatticeZero::IsRobotStateInGoalRegion(const RobotState& state)
     WorkspaceCoord coord;
     stateWorkspaceToCoord(workspace_state, coord);
     stateCoordToWorkspace(coord, workspace_state);
+    if (workspace_state[6]!=0.2) workspace_state[6] =0.2;
     return IsWorkspaceStateInGoalRegion(workspace_state);
 }
 
 bool WorkspaceLatticeZero::IsWorkspaceStateInGoalRegion(const WorkspaceState& state)
 {
     double eps = 0.0001;
+    double x_org=-0.4;
+    double y_org=0;
+    double z_org=0.9;
     // m_max_ws_limits[2]=1.03;
     //****************** take distance to shield into accout***************************
     tf::Matrix3x3 obs_mat;
@@ -530,32 +541,54 @@ bool WorkspaceLatticeZero::IsWorkspaceStateInGoalRegion(const WorkspaceState& st
     double y=state[1]+rotated_vector[1];
     double z=state[2]+rotated_vector[2];
     const tf::Vector3 x_axis(1,0,0);
-    tf::Vector3 pos_to_org_vector(x+1.5,y,z-0.9);
+    tf::Vector3 pos_to_org_vector(x-x_org,y-y_org,z-z_org);
     pos_to_org_vector.normalize();
     float angle = acos(pos_to_org_vector.dot(x_axis));
     // ROS_INFO("Stuck at angle %f", angle);
-    if (angle>0.35) return false;
+    // ROS_INFO("Check angle");
+    if (angle>0.48) return false;
+    // ROS_INFO("Pass angle");
     //****************** Angle to make it a spheral cap***************************
     for (int i = 0; i < state.size(); ++i) {
         if (i<3){
             // ROS_INFO("i: %d, val: %f",i,state[i]+rotated_vector[i]);
             if (state[i]+rotated_vector[i] < m_min_ws_limits[i] - eps || state[i]+rotated_vector[i] > m_max_ws_limits[i] + eps) {
-                // ROS_INFO("Stuck at %d", i);
+                // ROS_INFO("Stuck at %d   %f", i,state[i]+rotated_vector[i]);
                 SMPL_DEBUG_NAMED("graph", "violates start region limits: %d, val: %f, min limit: %f, max limit: %f", i, state[i], m_min_ws_limits[i], m_max_ws_limits[i]);
                 return false;
             }
         }
         else{
             if (state[i] < m_min_ws_limits[i] - eps || state[i] > m_max_ws_limits[i] + eps) {
-                // ROS_INFO("Stuck at %d   %f", i,m_min_ws_limits[i]);
+                // ROS_INFO("Stuck at %d   %f", i,state[i]);
                 SMPL_DEBUG_NAMED("graph", "violates start region limits: %d, val: %f, min limit: %f, max limit: %f", i, state[i], m_min_ws_limits[i], m_max_ws_limits[i]);
                 return false;
             }
         }
     }
+    // ROS_INFO("Pass limit and angle");
     // Check if it's on the sphere;
     // ROS_INFO("vector: (%f, %f, %f)  ANGLE: %f",pos_to_org_vector[0],pos_to_org_vector[1],pos_to_org_vector[2],angle);
-    if ((x+1.5)*(x+1.5)+y*y+(z-0.9)*(z-0.9)<2.195*2.195 ||(x+1.5)*(x+1.5)+(y+0.1)*(y+0.1)+(z-0.9)*(z-0.9)>2.205*2.205) return false;
+    // if (x<0.805 || x>0.865) return false;
+
+
+    bool in_region_flag=false;
+    // ROS_INFO("x: %f y:%f z:%f",x,y,z);
+    for (double plane_x=0.6; plane_x<0.87; plane_x+=0.01){ 
+        // double temp=(double)(x)-plane_x;
+        // if (temp<0.0001 && temp>-0.001 && (x-x_org)*(x-x_org)+(y-y_org)*(y-y_org)+(z-z_org)*(z-z_org)>1.23*1.23 && (x-x_org)*(x-x_org)+(y-y_org)*(y-y_org)+(z-z_org)*(z-z_org)<1.29*1.29){
+        //     in_region_flag=true;
+        //     // ROS_INFO("x: %f y:%f z:%f",x,y,z);
+        // }
+        if (x>=plane_x-0.02 && x<=plane_x+0.02 && (x-x_org)*(x-x_org)+(y-y_org)*(y-y_org)+(z-z_org)*(z-z_org)>1.23*1.23 && (x-x_org)*(x-x_org)+(y-y_org)*(y-y_org)+(z-z_org)*(z-z_org)<1.29*1.29){
+            in_region_flag=true;
+        }
+    }
+    if (!in_region_flag) return false;
+    
+
+   
+    // if ((x+1.5)*(x+1.5)+y*y+(z-0.9)*(z-0.9)<2.195*2.195 ||(x+1.5)*(x+1.5)+(y+0.1)*(y+0.1)+(z-0.9)*(z-0.9)>2.205*2.205) return false;
     
     // ROS_INFO("vector: (%f, %f, %f)  ANGLE: %f",pos_to_org_vector[0],pos_to_org_vector[1],pos_to_org_vector[2],angle);
     return true;
@@ -578,17 +611,60 @@ void WorkspaceLatticeZero::PruneCoveredStates(std::vector<WorkspaceState>& works
 void WorkspaceLatticeZero::FillFrontierLists(
     const std::vector<int>& state_ids)
 {
+    // WorkspaceState my_state;
     for (const auto& state_id : state_ids) {
         auto entry = getState(state_id);
         if (IsStateValid(state_id)) {
             m_valid_front.insert(entry);
-            // std::cout<<"FILL Frontier Lists: "<<entry->coord[0]<<", "<<entry->coord[1]<<", "<<entry->coord[2]<<"\n";
+            // stateCoordToWorkspace(entry->coord,my_state);
+            // if (IsStateCovered(true,state_id)) std::cout<<"FILL Frontier Lists: "<<my_state[0]<<", "<<my_state[1]<<", "<<my_state[2]<<", "<<my_state[3]<<", "<<my_state[4]<<", "<<my_state[5]<<", "<<my_state[6]<<"\n";
         }
         else {
             m_invalid_front.insert(entry);
         }
     }
 }
+
+void WorkspaceLatticeZero::FillFrontierLists(  //fill all into valid front
+    const std::vector<int>& state_ids, int attractor_id)
+{
+    // WorkspaceState my_state;
+    auto attractor_state= getState(attractor_id);
+    for (const auto& state_id : state_ids) {
+        auto entry = getState(state_id);
+        // short del_x=entry->coord[0]-attractor_state->coord[0];
+        // short del_y=entry->coord[1]-attractor_state->coord[1];
+        // short del_z=entry->coord[2]-attractor_state->coord[2];
+        m_valid_front.insert(entry);
+        // if(sqrt(del_x*del_x+del_y*del_y+del_z*del_z)>5){
+        //     if (IsStateValid(state_id)) {
+        //         m_valid_front.insert(entry);
+        //         // stateCoordToWorkspace(entry->coord,my_state);
+        //         // if (IsStateCovered(true,state_id)) std::cout<<"FILL Frontier Lists: "<<my_state[0]<<", "<<my_state[1]<<", "<<my_state[2]<<", "<<my_state[3]<<", "<<my_state[4]<<", "<<my_state[5]<<", "<<my_state[6]<<"\n";
+        //     }
+        //     else {
+        //         m_invalid_front.insert(entry);
+        //     }
+        // }
+    }
+    // for (const auto& state_id : state_ids) {
+    //     auto entry = getState(state_id);
+    //     short del_x=entry->coord[0]-attractor_state->coord[0];
+    //     short del_y=entry->coord[1]-attractor_state->coord[1];
+    //     short del_z=entry->coord[2]-attractor_state->coord[2];
+    //     if(sqrt(del_x*del_x+del_y*del_y+del_z*del_z)<=5(
+    //         if (IsStateValid(state_id)) {
+    //             m_valid_front.insert(entry);
+    //             // stateCoordToWorkspace(entry->coord,my_state);
+    //             // if (IsStateCovered(true,state_id)) std::cout<<"FILL Frontier Lists: "<<my_state[0]<<", "<<my_state[1]<<", "<<my_state[2]<<", "<<my_state[3]<<", "<<my_state[4]<<", "<<my_state[5]<<", "<<my_state[6]<<"\n";
+    //         }
+    //         else {
+    //             m_invalid_front.insert(entry);
+    //         }
+    //     }
+    // }
+}
+
 
 void WorkspaceLatticeZero::GetWorkspaceState(const int state_id, WorkspaceState& workspace_state)
 {
@@ -638,12 +714,12 @@ int WorkspaceLatticeZero::SetAttractorState()
 
     if(IsWorkspaceStateInGoalRegion(workspace_state)){
         printCounter=(printCounter+1)%1000;
-        if (printCounter==1) std::cout<<"COORD: "<<workspace_state[0]<<", "<<workspace_state[1]<<", "<<workspace_state[2]<<", "<<workspace_state[3]<<", "<<workspace_state[4]\
+        if (printCounter==1) std::cout<<"SKIPED COORD: "<<workspace_state[0]<<", "<<workspace_state[1]<<", "<<workspace_state[2]<<", "<<workspace_state[3]<<", "<<workspace_state[4]\
         <<", "<<workspace_state[5]<<", "<<workspace_state[6]<<"\n";
         return attractor_state_id;
     }
     
-    
+    // ROS_INFO("!!!!!!!!!!!!!!");
     return -attractor_state_id;
 }
 
@@ -697,7 +773,7 @@ void WorkspaceLatticeZero::PassRegions(
 
 void WorkspaceLatticeZero::VisualizePoint(int state_id, std::string type)
 {
-#if 0
+#if 1
     WorkspaceLatticeState* entry = getState(state_id);
     int hue = 0;
     if (type == "greedy")
@@ -706,6 +782,8 @@ void WorkspaceLatticeZero::VisualizePoint(int state_id, std::string type)
         hue = 199;
     else if (type == "exited")
         hue = 299;
+    else if (type == "open")
+        hue = 399;
 
     WorkspaceState ws_parent;
     stateCoordToWorkspace(entry->coord, ws_parent);
@@ -721,7 +799,7 @@ void WorkspaceLatticeZero::VisualizePoint(int state_id, std::string type)
                                            m_vis_id);
     SV_SHOW_INFO_NAMED(vis_name, marker);
     m_vis_id++;
-    getchar();
+    // getchar();
 #endif
 }
 
@@ -1034,7 +1112,7 @@ void WorkspaceLatticeZero::GetSuccs(
         const WorkspaceState& final_state = action.back();
         WorkspaceCoord succ_coord;
         stateWorkspaceToCoord(final_state, succ_coord);
-        // std::cout<<"SUCCESSOR COORD: "<<succ_coord[0]<<", "<<succ_coord[1]<<", "<<succ_coord[2]<<" \n";
+        // std::cout<<"SUCCESSOR COORD: "<<final_state[0]<<", "<<final_state[1]<<", "<<final_state[2]<<" \n";
         // check if hash entry already exists, if not then create one
         int succ_id = createState(succ_coord);
         WorkspaceLatticeState* succ_state = getState(succ_id);
