@@ -575,7 +575,7 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
     
 }
 
-void ZeroTimePlanner::Query(std::vector<RobotState>& path)
+int ZeroTimePlanner::Query(std::vector<RobotState>& path)
 {
     
     // for pose goal
@@ -595,7 +595,7 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
 #if 1
     if (!m_task_space->IsRobotStateInGoalRegion(start_state)) {
     	ROS_ERROR("Query state outside start region");
-    	return;
+    	return OUTSIDE;
     }
 #endif
     auto now = clock::now();
@@ -607,7 +607,7 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
 
     if (reg_idx == -1) {
         ROS_ERROR("Query start state not covered");
-        return;
+        return NOTCOVER;
     }
     
     // set start
@@ -617,12 +617,12 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
     
     if (start_id == -1) {
         ROS_ERROR("No start state has been set in workspace lattice");
-        return;
+        return NOTSET;
     }
 
     if (m_planner_zero->set_start(start_id) == 0) {
         ROS_ERROR("Failed to set start state");
-        return;
+        return FAILTOSET;
     }
 
     GoalConstraint goal;
@@ -634,12 +634,12 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
     const int goal_id = m_task_space->getGoalStateID();
     if (goal_id == -1) {
         ROS_ERROR("No goal state has been set");
-        return;
+        return NOTSET;
     }
 
     if (m_planner_zero->set_goal(goal_id) == 0) {
         ROS_ERROR("Failed to set planner goal state");
-        return;
+        return FAILTOSET;
     }
 
     printf("start id %d goal id %d\n", start_id, goal_id);
@@ -689,7 +689,7 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
         ROS_INFO("Zero planner query flag 2");
         if (!m_task_space->extractPath(solution_state_ids, ztp_path)) {
             ROS_ERROR("Failed to convert state id path to joint variable path");
-            return;
+            return FAILTOCONVERT;
         }
         
         path = m_regions[reg_idx].path;
@@ -709,7 +709,7 @@ void ZeroTimePlanner::Query(std::vector<RobotState>& path)
     m_task_space->ClearStates();
     
     m_planner_zero->force_planning_from_scratch_and_free_memory();
-    
+    return SUCCESS;
 }
 
 void ZeroTimePlanner::WriteRegions()

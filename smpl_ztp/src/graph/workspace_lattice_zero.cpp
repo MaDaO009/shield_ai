@@ -461,7 +461,8 @@ int WorkspaceLatticeZero::FindRegionContainingState(const RobotState& joint_stat
     stateRobotToCoord(joint_state, workspace_coord);
     // std::cout<<"FindRegionContainingState WORKSPACE COORD: "<<workspace_coord[0]<<", "<<workspace_coord[1]<<", "<<workspace_coord[2]<<", "<<workspace_coord[3]<<", "<<workspace_coord[4]<<", "<<workspace_coord[5]<<" \n";
     stateCoordToWorkspace(workspace_coord, workspace_state);
-    if (workspace_state[6]!=0.21) workspace_state[6] =0.21;
+    // if (workspace_state[6]>0.28) workspace_state[6] =0.13;
+    // else if (workspace_state[6]<0) workspace_state[6] =0.04;
     int query_state_id = createState(workspace_coord);
 
     // Collision check`
@@ -493,6 +494,35 @@ int WorkspaceLatticeZero::FindRegionContainingState(const RobotState& joint_stat
         }
         reg_idx++;
     }
+    
+
+    //*****************************************************
+    // int j=0;
+    // while(!covered && j<3){
+        
+    //     for (const auto& r : *m_regions_ptr) {
+    //         // WorkspaceState c_workspace_state;
+    //         WorkspaceCoord workspace_coord;
+            
+    //         stateWorkspaceToCoord(r.state, workspace_coord);
+            
+    //         int attractor_state_id = createState(workspace_coord);
+    //         RobotHeuristic* h = heuristic(0);
+    //         int dsum = h->GetFromToHeuristic(query_state_id, attractor_state_id);
+    //         SMPL_DEBUG_STREAM_NAMED("graph.expands", "    query state:     " << workspace_state);
+    //         SMPL_DEBUG_STREAM_NAMED("graph.expands", "    attractor state: " << r.state);
+
+    //         if (dsum < r.radius || dsum == 0) {
+    //             // printf("dsum %d radius %u id1 %d id2 %d\n", dsum, r.radius, query_state_id, attractor_state_id);
+    //             // ROS_INFO("Covered try %d", count);
+    //             goal_state = r.state;
+    //             covered = true;
+    //             break;
+    //         }
+    //         reg_idx++;
+    //     }
+    //     j++;
+    // }
 
     if (covered) {
         SMPL_DEBUG_NAMED("graph", "Attractor State of Containing Region %d", reg_idx);
@@ -513,7 +543,8 @@ bool WorkspaceLatticeZero::IsRobotStateInGoalRegion(const RobotState& state)
     WorkspaceCoord coord;
     stateWorkspaceToCoord(workspace_state, coord);
     stateCoordToWorkspace(coord, workspace_state);
-    if (workspace_state[6]!=0.2) workspace_state[6] =0.2;
+    if (workspace_state[6]>0.22) workspace_state[6] =0.21;
+    else if (workspace_state[6]<0.04) workspace_state[6] =0.04;
     return IsWorkspaceStateInGoalRegion(workspace_state);
 }
 

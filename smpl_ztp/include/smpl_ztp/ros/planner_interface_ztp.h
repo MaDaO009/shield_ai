@@ -90,7 +90,7 @@ SBPL_CLASS_FORWARD(PlannerInterface);
 class PlannerInterface
 {
 public:
-    float vx,vy,vz,px,py,pz,land_px,land_py,land_pz;
+    float vx,vy,vz,px,py,pz,land_px,land_py,land_pz,surface_x,surface_y,surface_z;
     float q_x,q_y,q_z,q_w;
     double roll, pitch, yaw;
 
@@ -138,6 +138,7 @@ public:
 
     void arrayCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
     void objCallback(const std_msgs::String::ConstPtr& msg);
+    void FindOtherGoal(int i,WorkspaceState& temp_workspace_state, float surface_x, float surface_y, float surface_z);
     /// @brief Return planning statistics from the last call to solve.
     ///
     /// Possible keys to statistics include:
@@ -176,6 +177,8 @@ public:
     bool fillGoalPositionConstraint(
         const moveit_msgs::Constraints& goal_constraints,
         GoalConstraint& goal);
+
+    
     ///@}
 
 protected:

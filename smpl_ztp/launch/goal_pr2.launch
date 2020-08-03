@@ -4,7 +4,7 @@
     <include file="$(find pr2_moveit_config)/launch/demo.launch"/> 
  
     <param name="robot_description" command="$(find xacro)/xacro.py '$(find pr2_description)/robots/pr2.urdf.xacro'"/>
-    <param name="query" value="false"/>
+    <param name="query" value="true"/>
     <arg unless="$(arg debug)" name="launch-prefix" value=""/>
     <arg     if="$(arg debug)" name="launch-prefix" value="gdb ex --args"/>
 

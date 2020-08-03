@@ -494,6 +494,10 @@ float roundfloat(float var)
     float value = (int)(var * 100 + .5); 
     return (float)value / 100; 
 } 
+
+
+
+
 void PlannerInterface::arrayCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 {
 
@@ -548,6 +552,9 @@ void PlannerInterface::arrayCallback(const std_msgs::Float32MultiArray::ConstPtr
     land_px=px+vx*landing_time;
     land_py=py+vy*landing_time;
     land_pz=pz+vz*landing_time+0.5*-g*landing_time*landing_time;
+    surface_x=land_px;
+    surface_y=land_py;
+    surface_z=land_pz;
     
 
 //******************************For landing quaterion********************************
@@ -610,6 +617,20 @@ void PlannerInterface::arrayCallback(const std_msgs::Float32MultiArray::ConstPtr
     if_get_prection=1;
 }
 
+void PlannerInterface::FindOtherGoal(int i,WorkspaceState& temp_workspace_state, float surface_x, float surface_y, float surface_z){
+    tf::Matrix3x3 mat;
+    tf::Vector3 x_vector(1.0, 0.0, 0.0);
+    mat.setEulerYPR(0,-i*M_PI/18.0, 0);
+    tf::Vector3 delta_vector=mat*x_vector;
+
+    temp_workspace_state[0]=surface_x-delta_vector[0]*0.15;
+    temp_workspace_state[1]=surface_y-delta_vector[1]*0.15-0.04;
+    temp_workspace_state[2]=surface_z-delta_vector[2]*0.15;
+    temp_workspace_state[3]=0;
+    temp_workspace_state[4]=-i*M_PI/18.0;
+    temp_workspace_state[5]=0;
+    temp_workspace_state[6]=0.22;
+}
 
 
 bool PlannerInterface::solveZero(
@@ -784,8 +805,6 @@ bool PlannerInterface::solveZero(
             temp_workspace_state[1]=land_py;
             temp_workspace_state[2]=land_pz;
             temp_workspace_state[3]=0;
-            // temp_workspace_state[4]=0;
-            // temp_workspace_state[5]=0;
             temp_workspace_state[4]=pitch;
             temp_workspace_state[5]=roll;
             temp_workspace_state[6]=0.22;
@@ -797,7 +816,22 @@ bool PlannerInterface::solveZero(
 
             auto now = clock::now();
             
-            m_zero_planner->Query(path);
+            int query_output=m_zero_planner->Query(path);
+            int i=2;
+            while (query_output ==NOTCOVER && i>=0) {
+                ROS_INFO("START recovery");
+                FindOtherGoal(i,temp_workspace_state,surface_x,surface_y,surface_z);
+               
+                ROS_INFO("free angle: %f",temp_workspace_state[6]);
+                i--;
+                task_space_base->stateWorkspaceToRobot(temp_workspace_state,goal.angles);
+                
+                m_zero_planner->setStartAndGoal(initial_positions, goal);
+                query_output=m_zero_planner->Query(path);
+                if (query_output==SUCCESS) ROS_INFO("RECOVERED!!");
+                else ROS_INFO("Fail to RECOVER");
+                
+            }
             
             res.planning_time = to_seconds(clock::now() - now);
 

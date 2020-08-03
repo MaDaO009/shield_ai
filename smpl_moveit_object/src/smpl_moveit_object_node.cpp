@@ -41,7 +41,7 @@
                obj_pos_vec_pub = nh.advertise<std_msgs::Float32MultiArray>("obj_array", 1);
                // obj_state_sub = nh.subscribe("obj_state", 1, &collisionObjectAdder::chatterCallback, this);
           }
-          float update_time=0.05;
+          float update_time=0.1;
 
           // void chatterCallback(const std_msgs::String::ConstPtr& msg)
           //      {
@@ -128,6 +128,7 @@
                p_x +=v_x*update_time;
                p_y +=v_y*update_time;
                p_z +=v_z*update_time;
+               if (p_x-0.85>-0.03 && p_x-0.85<0.03) ROS_INFO("x: %f, y: %f, z: %f",p_x, p_y, p_z);
                if (p_x<0.4){
                     re_init_object();
                     return;
@@ -153,7 +154,7 @@
           void re_init_object(){
                sleep(1.0);
                p_x=4+fRand(-0.1,0.1);
-               p_y=-0.1+fRand(-0.1,0.1);
+               p_y=-0.15+fRand(-0.1,0.1);
                p_z=0.8+fRand(-0.1,0.1);
                v_z=1.7+fRand(-0.05,0.05);
                v_x=fRand(-2.05,-1.95);

@@ -53,6 +53,13 @@
 #include <moveit_msgs/AttachedCollisionObject.h>
 #include <moveit_msgs/CollisionObject.h>
 
+enum{OUTSIDE,
+        NOTCOVER,
+        NOTSET,
+        FAILTOSET,
+        FAILTOCONVERT,
+        SUCCESS};
+        
 namespace smpl {
 
 class ZeroTimePlanner
@@ -74,7 +81,8 @@ public:
         const RobotState& start_state,
         const GoalConstraint& goal);
     void PreProcess(const RobotState& full_start_state);
-    void Query(std::vector<RobotState>& path);
+    
+    int Query(std::vector<RobotState>& path);
 
 private:
 
