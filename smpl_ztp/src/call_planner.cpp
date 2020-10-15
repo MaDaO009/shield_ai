@@ -480,7 +480,7 @@ int main(int argc, char* argv[])
 
     // let publishers set up
     ros::Duration(1.0).sleep();
-
+    sleep(5);
     /////////////////
     // Robot Model //
     /////////////////
@@ -557,9 +557,9 @@ int main(int argc, char* argv[])
     // This whole manage storage for all the scene objects and must outlive
     // its associated CollisionSpace instance.
     CollisionSpaceScene scene;
-
-    smpl::collision::CollisionModelConfig cc_conf;
-    if (!smpl::collision::CollisionModelConfig::Load(ph, cc_conf)) {
+sleep(5);
+    smpl::collision::CollisionModelConfig cc_conf;sleep(5);
+    if (!smpl::collision::CollisionModelConfig::Load(ph, cc_conf)) {sleep(5);
         ROS_ERROR("Failed to load Collision Model Config");
         return 1;
     }
@@ -582,16 +582,16 @@ int main(int argc, char* argv[])
 
     std::string object_filename;
     // comment all object
-    // ph.param<std::string>("object_filename", object_filename, "");
+    ph.param<std::string>("object_filename", object_filename, "");
 
     // read in collision objects from file and add to the scene
-    // if (!object_filename.empty()) {
-    //     auto objects = GetCollisionObjects(object_filename, planning_frame);
-    //     for (auto& object : objects) {
-    //         scene.ProcessCollisionObjectMsg(object);
-    //     }
-    // }
-    // else ROS_INFO("NO OBJECT \n\n\n\n\n");
+    if (!object_filename.empty()) {
+        auto objects = GetCollisionObjects(object_filename, planning_frame);
+        for (auto& object : objects) {
+            scene.ProcessCollisionObjectMsg(object);
+        }
+    }
+    else ROS_INFO("NO OBJECT \n\n\n\n\n");
 
     // read in start state from file and update the scene
     moveit_msgs::RobotState start_state;
@@ -758,7 +758,7 @@ int main(int argc, char* argv[])
 
     
     // plan
-    sleep(5);
+    
     bool query = false;
     if (!nh.getParam("query", query)) {
         ROS_ERROR("Failed to read 'query' from the param server");

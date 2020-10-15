@@ -70,6 +70,8 @@
 #include "std_msgs/Float32MultiArray.h"
 #include "std_msgs/String.h"
 #include <sstream>
+#include <smpl_moveit_interface/planner/moveit_robot_model.h>
+#include <moveit/robot_model_loader/robot_model_loader.h>
 SBPL_CLASS_FORWARD(SBPLPlanner);
 
 namespace smpl {
@@ -93,9 +95,22 @@ public:
     float vx,vy,vz,px,py,pz,land_px,land_py,land_pz,surface_x,surface_y,surface_z;
     float q_x,q_y,q_z,q_w;
     double roll, pitch, yaw;
+    bool if_print=false;
+    robot_model_loader::RobotModelLoader pl_robot_model_loader{"robot_description"};
+    robot_model::RobotModelPtr pl_kinematic_model = pl_robot_model_loader.getModel();
+    planning_scene::PlanningScene my_planning_scene{pl_kinematic_model};
+    collision_detection::AllowedCollisionMatrix acm;
+    collision_detection::CollisionRequest collision_request;
+    collision_detection::CollisionResult collision_result;
 
     int to_block=0;
     int if_get_prection=0;
+    int counter=0;
+    bool if_reach=false;
+    bool to_return=false;
+    moveit::planning_interface::MoveGroupInterface::Plan blocking_plan;
+    moveit::planning_interface::MoveGroupInterface::Plan backing_plan;
+    std::string group_name;
     PlannerInterface(
         RobotModel* robot,
         CollisionChecker* checker,
@@ -135,7 +150,7 @@ public:
     auto heuristics() const -> std::pair<heuristic_iterator, heuristic_iterator> {
         return std::make_pair(begin(m_heuristics), end(m_heuristics));
     }
-
+    void sceneCallback(const moveit_msgs::PlanningScene& scene_msg);
     void arrayCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
     void objCallback(const std_msgs::String::ConstPtr& msg);
     void FindOtherGoal(int i,WorkspaceState& temp_workspace_state, float surface_x, float surface_y, float surface_z);
@@ -194,6 +209,7 @@ protected:
     ros::NodeHandle nh;
     ros::Subscriber obj_pos_vec_sub;
     ros::Subscriber obj_state_sub;
+    ros::Subscriber planning_scene_sub;
     ros::Publisher obj_state_pub;
 
     // params

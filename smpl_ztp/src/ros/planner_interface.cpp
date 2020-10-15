@@ -91,6 +91,11 @@
 #include "std_msgs/Float32MultiArray.h"
 #include <cmath>
 #include <tf/transform_datatypes.h>
+#include <smpl_moveit_interface/planner/moveit_robot_model.h>
+#include <moveit/robot_model_loader/robot_model_loader.h>
+
+
+
 
 namespace smpl {
 
@@ -475,18 +480,13 @@ bool PlannerInterface::solve(
 }
 
 void PlannerInterface::objCallback(const std_msgs::String::ConstPtr& msg){
-    ROS_INFO("Receive %s", msg->data.c_str());
+    // ROS_INFO("Receive %s", msg->data.c_str());
     std::stringstream temp_ss;
-    temp_ss << "flying";
+    temp_ss << "Blocking";
     if(msg->data==temp_ss.str()) {
-    
-        std_msgs::String new_msg;
-        std::stringstream ss;
-        ss << "ToBlock";
-        new_msg.data = ss.str();
-        ROS_INFO("%s", new_msg.data.c_str());
-        obj_state_pub.publish(new_msg);
         to_block=1;
+        if_get_prection=0;
+        // ROS_INFO("REINIT");
     }
 }
 float roundfloat(float var) 
@@ -496,13 +496,15 @@ float roundfloat(float var)
 } 
 
 
+void PlannerInterface::sceneCallback(const moveit_msgs::PlanningScene& scene_msg){
+    my_planning_scene.setPlanningSceneMsg(scene_msg);
+}
 
 
 void PlannerInterface::arrayCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 {
-
-	int i = 0;
-    
+    int i = 0;
+    counter=(counter+1)%300;
 	for(std::vector<float>::const_iterator it = array->data.begin(); it != array->data.end(); ++it)
 	{
 		if(i==0) px = *it;
@@ -513,14 +515,79 @@ void PlannerInterface::arrayCallback(const std_msgs::Float32MultiArray::ConstPtr
         else if(i==5) vz = *it;
 		i++;
 	}
+    
+    if(if_reach){
+        // acm = my_planning_scene.getAllowedCollisionMatrix();
+        // std::vector<std::string> names;
+        // acm.getAllEntryNames(names);
+        // for(int i=0; i < names.size(); i++){
+        //     if(names[i]!="r_gripper_shield") acm.setDefaultEntry(names[i],true);
+        // }
+        // acm.setDefaultEntry("r_gripper_shield",false);
+        // acm.setDefaultEntry("sphere",true);
+        // acm.setEntry("r_gripper_shield","sphere",false);
+        if(!if_print){
+            
+            // acm.setEntry("r_gripper_shield","r_gripper_r_finger_link",true);
+            // acm.setEntry("r_gripper_shield","r_gripper_palm_link",true);
+            // acm.setEntry("r_gripper_shield","r_gripper_l_finger_tip_link",true);
+            // acm.setEntry("r_gripper_shield","r_gripper_l_finger_link",true);
+            std::ostream& out=std::cout;
+            acm.print(out);
+            out<<"\n";
+            if_print=true;
+        }
+        //Check if success
+        collision_result.clear();
+        robot_state::RobotState copied_state = my_planning_scene.getCurrentState();
+        // copied_state.printStateInfo(std::cout);
+        my_planning_scene.checkCollision(collision_request, collision_result, copied_state, acm);
 
+        if (collision_result.collision){
+            if_reach=false;
+            ROS_INFO("BLOCK successfully %f",px);
+            to_return=true;
+            return;
+        }
+
+
+        // ROS_INFO("!!!!");
+        // if(pow(land_px-px,2)+pow(land_py-py,2)+pow(land_pz-pz,2)<0.5){
+        //     ROS_INFO("BLOCK successfully");
+        //     if_reach=false;
+            
+            
+        //     to_return=true;
+            
+        //     // m_zero_planner->reverse_back_trajectory(blocking_plan,group_name);
+        //     return;
+        // }
+        if(pz<0){
+            ROS_INFO("FAIL TO BLOCK");
+            if_reach=false;
+
+            
+            to_return=true;
+            // m_zero_planner->reverse_back_trajectory(blocking_plan,group_name);
+            return;
+        }
+    }
+
+     
+    
+
+    // if(counter==0) ROS_INFO("!!!! %d",if_get_prection);
+    if (if_get_prection==1) return;
+	
+    // ROS_INFO("!!!!");
     using namespace std;
     float landing_time;
     float g=2;
     float x_org=-0.4;
     float y_org=0;
     float z_org=0.9;
-    float r=1.26;
+    float r=1.15;
+    double shield_distance=0.14;
 
     float a=0.25*g*g;
     float b=-g*vz;
@@ -530,7 +597,7 @@ void PlannerInterface::arrayCallback(const std_msgs::Float32MultiArray::ConstPtr
     // ROS_INFO("a: %f b: %f c: %f d: %f e: %f",a,b,c,d,e);
 
     float p=(8*a*c-3*b*b)/(8*a*a);
-    cout<<p<<endl;
+    // cout<<p<<endl;
     float q=(b*b*b-4*a*b*c+8*a*a*d)/(8*a*a*a);
     float delta_0=c*c-3*b*d+12*a*e;
     float delta_1=2*c*c*c-9*b*c*d+27*a*d*d+27*b*b*e-72*a*c*e;
@@ -567,12 +634,12 @@ void PlannerInterface::arrayCallback(const std_msgs::Float32MultiArray::ConstPtr
     // tf::Vector3 v_vector(x_org-land_px,y_org-land_py,z_org-land_pz);
 
     v_vector.normalize();
-    ROS_INFO("Landing1  x: %f y: %f z: %f",land_px, land_py,land_pz);
+    // ROS_INFO("Landing1  x: %f y: %f z: %f",land_px, land_py,land_pz);
     
 
     tf::Vector3 right_vector = v_vector.cross(x_vector);
     right_vector.normalize();
-    cout<<right_vector[0]<<" "<<right_vector[1]<<" "<<right_vector[2]<<" "<<endl;
+    // cout<<right_vector[0]<<" "<<right_vector[1]<<" "<<right_vector[2]<<" "<<endl;
     tf::Quaternion my_qua(right_vector, -1.0*acos(v_vector.dot(x_vector)));
     my_qua.normalize();
     
@@ -593,6 +660,7 @@ void PlannerInterface::arrayCallback(const std_msgs::Float32MultiArray::ConstPtr
     // while (pitch>0.5) pitch-=3.14;
     // while (pitch<-0.5) pitch+=3.14;
     // yaw=0;
+
     int temp_roll=roll/M_PI*18;
     int temp_yaw=yaw/M_PI*18;
     int temp_pitch=pitch/M_PI*18;
@@ -600,19 +668,21 @@ void PlannerInterface::arrayCallback(const std_msgs::Float32MultiArray::ConstPtr
     pitch=temp_pitch*M_PI/18.0;
     roll=temp_roll*M_PI/18.0;
     mat.setEulerYPR(yaw,pitch,roll);
+    // mat.setEulerYPR(roll,pitch,yaw);
     // tf::Vector3 x_vector2(-1.0, 0.0, 0.0);
     tf::Vector3 delta_vector=mat*x_vector;
     
 
     //taking distance from shield to arm into consideration
-    land_px-=delta_vector[0]*0.15;
-    land_py-=delta_vector[1]*0.15;
-    land_pz-=delta_vector[2]*0.15;
+    land_px-=delta_vector[0]*shield_distance;
+    land_py-=delta_vector[1]*shield_distance;
+    land_pz-=delta_vector[2]*shield_distance;
     // land_px=roundfloat(land_px);
     // land_py=roundfloat(land_py);
     // land_pz=roundfloat(land_pz);
-    ROS_INFO("Landing x: %f y: %f z: %f",land_px, land_py,land_pz);
-    cout<<yaw<<" "<<pitch<<" "<<roll<<endl;
+    ROS_INFO("Landing x: %f y: %f z: %f yaw: %f roll: %f pitch: %f",land_px, land_py,land_pz,yaw,roll,pitch);
+    ROS_INFO("Delta Vec (%f, %f, %f)",delta_vector[0],delta_vector[1],delta_vector[2]);
+    // cout<<yaw<<" "<<pitch<<" "<<roll<<endl;
     // flag that indicates we predict to block the obj
     if_get_prection=1;
 }
@@ -642,7 +712,7 @@ bool PlannerInterface::solveZero(
     bool query)
 {
     ROS_INFO("Solve Zero");
-
+    moveit_msgs::RobotState my_start_state=req.start_state;
     clearMotionPlanResponse(req, res);
 
     if (!m_initialized) {
@@ -764,7 +834,11 @@ bool PlannerInterface::solveZero(
         m_zero_planner->PreProcess(initial_positions);
     }
     else {
-        int num_queries = 15;
+        sleep(1.0);
+        group_name=req.group_name;
+        m_zero_planner->MoveToStartState(group_name,my_start_state);
+        
+        int num_queries = 50;
         double total_time = 0.0;
         double best_time = 10000.0;
         double worst_time = 0.0;
@@ -775,24 +849,55 @@ bool PlannerInterface::solveZero(
         int my_counter=0;
         int execution_counter=0;
 
-        // init publisher and suscriber
-        // ros::init("talker");
+        
+
+        acm = my_planning_scene.getAllowedCollisionMatrix();
+        std::vector<std::string> names;
+        acm.getAllEntryNames(names);
+        for(int i=0; i < names.size(); i++){
+            if(names[i]!="r_gripper_shield") acm.setDefaultEntry(names[i],true);
+        }
+        acm.setDefaultEntry("r_gripper_shield",false);
+        acm.setDefaultEntry("sphere",true);
+        acm.setEntry("r_gripper_shield","sphere",false);
+        
+
+
         obj_pos_vec_sub = nh.subscribe<std_msgs::Float32MultiArray>("obj_array", 1, &PlannerInterface::arrayCallback,this);
         obj_state_sub=nh.subscribe<std_msgs::String>("obj_state", 1, &PlannerInterface::objCallback, this);
         obj_state_pub = nh.advertise<std_msgs::String>("obj_state", 1);
-        // ros::spinOnce();
+        planning_scene_sub = nh.subscribe("/move_group/monitored_planning_scene", 0, &PlannerInterface::sceneCallback, this);
+        // int temp_c=0;
         while(ros::ok()){
             
             ros::spinOnce(); 
+            // temp_c=(temp_c+1)%100000;
+            // if(temp_c==0) ROS_INFO("****");
+            if (to_return){
+                
+                m_zero_planner->reverse_back_trajectory(blocking_plan,group_name,pl_kinematic_model);
+                
+                to_return=false;
+                if_get_prection=0;
+                ROS_INFO("Get back");
+                
+                std_msgs::String msg;
+                std::stringstream ss;
+                ss << "Finished";
+                msg.data = ss.str();
+                // ROS_INFO("%s", msg.data.c_str());
+                obj_state_pub.publish(msg);
+
+                continue;
+            }
             if(to_block==0 || if_get_prection==0) {
-                // ROS_INFO("!!!!!!!!!!!!");
                 continue;
             }
             
             ROS_INFO("***************Zero time query*****************");
             // rate.sleep();
             to_block=0;
-             if_get_prection=0;
+            // if_get_prection=0;
             // task_space_base->stateWorkspaceToRobot(temp_workspace_state,goal.angles);
             execution_counter++;
             if(execution_counter>20) break;
@@ -800,17 +905,40 @@ bool PlannerInterface::solveZero(
             
             task_space_base->stateRobotToWorkspace(goal.angles,temp_workspace_state);
 
-            // temp_workspace_state[0]=0.41;
+            
             temp_workspace_state[0]=land_px;
             temp_workspace_state[1]=land_py;
             temp_workspace_state[2]=land_pz;
             temp_workspace_state[3]=0;
             temp_workspace_state[4]=pitch;
             temp_workspace_state[5]=roll;
-            temp_workspace_state[6]=0.22;
-
-            task_space_base->stateWorkspaceToRobot(temp_workspace_state,goal.angles);
-            
+            temp_workspace_state[6]=0.21;
+            for (double free_angle=0.21;free_angle<0.3;free_angle+=0.01){
+                temp_workspace_state[6]=free_angle;
+                task_space_base->stateWorkspaceToRobot(temp_workspace_state,goal.angles);
+                task_space_base->stateRobotToWorkspace(goal.angles, temp_workspace_state);
+                std::cout<<"WORKSPACE_COORD: "<<temp_workspace_state[6]<<"\n";
+                // std::cout<<"State:: ";
+                // for(int i=0;i<7;i++)std::cout<<goal.angles[i]<<" ";
+                // std::cout<<"\n";
+                if(temp_workspace_state[6]>=0.21 &&temp_workspace_state[6]<=0.3) break;
+            }
+            // if(temp_workspace_state[6]<0.21 || temp_workspace_state[6]>0.3){
+                
+            //     for (double free_angle=0.21;free_angle<0.3;free_angle+=0.03){
+            //         temp_workspace_state[0]=surface_x-0.14;
+            //         temp_workspace_state[1]=surface_y;
+            //         temp_workspace_state[2]=surface_z;
+            //         temp_workspace_state[3]=0;
+            //         temp_workspace_state[4]=0;
+            //         temp_workspace_state[5]=0;
+            //         temp_workspace_state[6]=free_angle;
+            //         task_space_base->stateWorkspaceToRobot(temp_workspace_state,goal.angles);
+            //         task_space_base->stateRobotToWorkspace(goal.angles, temp_workspace_state);
+            //         std::cout<<"WORKSPACE_COORD: "<<temp_workspace_state[6]<<"\n";
+            //         if(temp_workspace_state[6]>=0.21 &&temp_workspace_state[6]<=0.3) break;
+            //     }
+            // }
 
             m_zero_planner->setStartAndGoal(initial_positions, goal);
 
@@ -830,7 +958,6 @@ bool PlannerInterface::solveZero(
                 query_output=m_zero_planner->Query(path);
                 if (query_output==SUCCESS) ROS_INFO("RECOVERED!!");
                 else ROS_INFO("Fail to RECOVER");
-                
             }
             
             res.planning_time = to_seconds(clock::now() - now);
@@ -854,24 +981,46 @@ bool PlannerInterface::solveZero(
             }
             
             profilePath(res.trajectory.joint_trajectory);
-       
-            size_t pidx = 0;
-            do {
-                if(path.size()>0){
-                    auto& point = res.trajectory.joint_trajectory.points[pidx];
-                    auto markers = cc.getCollisionRobotVisualization(point.positions);
-                    for (auto& m : markers.markers) {
-                        m.ns = "path_animation";
-                    }
-                    SV_SHOW_INFO(markers);
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                    pidx++;
-                    pidx %= res.trajectory.joint_trajectory.points.size();
-                    if(pidx==0) std::this_thread::sleep_for(std::chrono::milliseconds(700));
-                    // ROS_INFO("pidx: %d",pidx);
-                }
-            } while (pidx!=0);
-            // sleep(0.8);
+            // EXECUTION
+            
+            // moveit_msgs::MotionPlanResponse response;
+            // res.getMessage(response);
+            ROS_INFO("PATH length: %zu",path.size());
+            if (path.size()>0){
+                blocking_plan=m_zero_planner->ExecutePlan(res,group_name,my_start_state);
+                if_reach=true;
+                path.resize(0);
+                
+            }
+            else {
+                ROS_INFO("ON Spheral cap but not covered by workspace");
+                if_reach=false;
+            }
+            // else{
+            //     if_reach=false;
+            //     if_get_prection=0;
+            // }
+            
+            // //Visualize EXECTION
+            
+            // SV_SHOW_INFO_NAMED("trajectory", makePathVisualization(path));
+            // size_t pidx = 0;
+            // do {
+            //     if(path.size()>0){
+            //         auto& point = res.trajectory.joint_trajectory.points[pidx];
+            //         auto markers = cc.getCollisionRobotVisualization(point.positions);
+            //         for (auto& m : markers.markers) {
+            //             m.ns = "path_animation";
+            //         }
+            //         SV_SHOW_INFO(markers);
+            //         std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            //         pidx++;
+            //         pidx %= res.trajectory.joint_trajectory.points.size();
+            //         if(pidx==0) std::this_thread::sleep_for(std::chrono::milliseconds(700));
+            //         // ROS_INFO("pidx: %d",pidx);
+            //     }
+            // } while (pidx!=0);
+            
         }
         // ros::Subscriber obj_state_sub = nh.subscribe("obj_state", 1, chatterCallback);
 

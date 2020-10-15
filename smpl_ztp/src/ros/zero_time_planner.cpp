@@ -41,7 +41,12 @@
 
 // project includes
 #include <smpl_ztp/ros/zero_time_planner.h>
-
+#include <smpl/debug/visualize.h>
+#include <smpl/ros/planner_interface.h>
+#include <smpl_moveit_interface/planner/moveit_robot_model.h>
+#include <moveit/robot_model_loader/robot_model_loader.h>
+#include <moveit/trajectory_processing/iterative_time_parameterization.h>
+#include <moveit/robot_state/conversions.h>
 namespace smpl {
 
 const char* PI_LOGGER_ZERO = "simple_zero";
@@ -186,7 +191,6 @@ bool ZeroTimePlanner::isQueryCovered(
     if (!m_task_space->IsQueryCovered(full_start_state, goal)) {
         return false;
     }
-
     return true;
 }
 
@@ -204,7 +208,7 @@ void ZeroTimePlanner::InitMoveitOMPL()
     ROS_INFO("Planning path with OMPL");
 
     // Collision objects
-    auto object_filename = "/usr0/home/fi/smpl_ws/src/smpl_ztp/env/tabletop.env";
+    auto object_filename = "/ws_smpl/src/smpl_ztp/env/tabletop.env";
     auto objects = GetCollisionObjects(object_filename, m_group->getPlanningFrame());
     std::vector<moveit_msgs::CollisionObject> collision_objects;
 
@@ -377,6 +381,105 @@ bool ZeroTimePlanner::PlanPathFromStartToAttractorSMPL(const RobotState& attract
     m_planner->force_planning_from_scratch_and_free_memory();
     return true;
 }
+
+
+bool ZeroTimePlanner::reverse_back_trajectory(moveit::planning_interface::MoveGroup::Plan& a_plan, std::string arm, robot_model::RobotModelPtr& _robot_model){
+                ros::AsyncSpinner spinner(1); 
+                spinner.start();
+                // moveit::planning_interface::MoveGroup::Plan  _revers_plan;
+                moveit::planning_interface::MoveGroupInterface::Plan _revers_plan;
+                _revers_plan.trajectory_.joint_trajectory.header.stamp = ros::Time::now();
+
+                _revers_plan.trajectory_.joint_trajectory.header.frame_id = a_plan.trajectory_.joint_trajectory.header.frame_id;
+                _revers_plan.trajectory_.joint_trajectory.joint_names = a_plan.trajectory_.joint_trajectory.joint_names;
+
+                int j = a_plan.trajectory_.joint_trajectory.points.size() - 1;
+                trajectory_processing::IterativeParabolicTimeParameterization time_param;
+                robot_trajectory::RobotTrajectory my_robot_trajectory(_robot_model, arm);
+                robot_state::RobotState r_state_holder(_robot_model);
+                for(size_t i = 0; i < a_plan.trajectory_.joint_trajectory.points.size() && j >= 0; i++){
+                       //ROS_WARN_STREAM("TEST : In the for loop trying to construct the inverse trajectory with size : " << a_plan.trajectory_.joint_trajectory.points.size());
+                       moveit::core::jointTrajPointToRobotState(a_plan.trajectory_.joint_trajectory, j, r_state_holder);
+                       my_robot_trajectory.insertWayPoint(i, r_state_holder, 0.1);
+                       j--;
+                    }
+
+                if(!time_param.computeTimeStamps(my_robot_trajectory))
+                    ROS_WARN("TEST : Time parametrization for the solution path failed.");
+                my_robot_trajectory.getRobotTrajectoryMsg(_revers_plan.trajectory_);
+                moveit::planning_interface::MoveGroup group(arm);
+                auto then = clock::now();
+                ROS_INFO("Start Get back");
+                bool success = (group.execute(_revers_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+                auto now = clock::now();
+                ROS_INFO("back exectime: %f",to_seconds(now - then));
+                return success;    
+            }
+            
+void ZeroTimePlanner::MoveToStartState(std::string group_name,moveit_msgs::RobotState start_state){
+    ros::AsyncSpinner spinner(1); 
+    spinner.start();
+    
+    moveit::planning_interface::MoveGroup group(group_name);
+    const robot_state::JointModelGroup* joint_model_group =group.getCurrentState()->getJointModelGroup(group_name);
+    moveit::core::RobotStatePtr current_state = group.getCurrentState();
+    std::vector<double> joint_group_positions;
+    current_state->copyJointGroupPositions(joint_model_group, joint_group_positions);
+    
+    double deviation=0;
+    for(int i=0;i<7;i++){
+        std::cout<<start_state.joint_state.position[i+1]<<" "<<joint_group_positions[i]<<" ";
+        deviation+=pow((joint_group_positions[i]-start_state.joint_state.position[i+1]),2); 
+        joint_group_positions[i]=start_state.joint_state.position[i+1];
+    }
+    std::cout<<"\n";
+    // joint_group_positions[0] = -1.0;  // radians
+    if(deviation>0.01){
+        group.setJointValueTarget(joint_group_positions);
+        moveit::planning_interface::MoveGroupInterface::Plan go_back_plan;
+        bool success = (group.plan(go_back_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+        if(success) {
+            group.move();
+            ROS_INFO("MOVE1");
+        }
+    }
+}
+
+
+moveit::planning_interface::MoveGroupInterface::Plan ZeroTimePlanner::ExecutePlan(moveit_msgs::MotionPlanResponse& response,std::string group_name,moveit_msgs::RobotState start_state){
+    // group = moveit_commander.MoveGroupCommander(group_name);
+    ros::AsyncSpinner spinner(1); 
+    spinner.start();
+    
+    moveit::planning_interface::MoveGroup group(group_name);
+    moveit::planning_interface::MoveGroupInterface::Plan myplan;
+    myplan.trajectory_ = response.trajectory; 
+    auto then = clock::now();
+    group.execute(myplan);
+    auto now = clock::now();
+    
+    ROS_INFO("exectime: %f",to_seconds(now - then));  
+    return myplan;
+}
+
+
+// moveit::planning_interface::MoveGroupInterface::Plan ZeroTimePlanner::ExecutePlan(moveit_msgs::MotionPlanResponse& response,std::string group_name,moveit_msgs::RobotState start_state){
+//     // group = moveit_commander.MoveGroupCommander(group_name);
+//     ros::AsyncSpinner spinner(1); 
+//     spinner.start();
+    
+//     moveit::planning_interface::MoveGroup group(group_name);
+//     moveit::planning_interface::MoveGroupInterface::Plan myplan;
+//     myplan.trajectory_ = response.trajectory; 
+//     auto then = clock::now();
+//     group.execute(myplan);
+//     auto now = clock::now();
+    
+//     ROS_INFO("exectime: %f",to_seconds(now - then));  
+//     return myplan;
+// }
+
+
 
 void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
 {
@@ -575,6 +678,8 @@ void ZeroTimePlanner::PreProcess(const RobotState& full_start_state)
     
 }
 
+
+
 int ZeroTimePlanner::Query(std::vector<RobotState>& path)
 {
     
@@ -600,7 +705,7 @@ int ZeroTimePlanner::Query(std::vector<RobotState>& path)
 #endif
     auto now = clock::now();
     int reg_idx = m_task_space->FindRegionContainingState(start_state);
-    std::cout<<reg_idx<<"\n";
+    // std::cout<<reg_idx<<"\n";
     auto find_time = to_seconds(clock::now() - now);
     // ROS_INFO("FIND TIME %f", find_time);
     // getchar();
@@ -693,6 +798,7 @@ int ZeroTimePlanner::Query(std::vector<RobotState>& path)
         }
         
         path = m_regions[reg_idx].path;
+        
 
         if (ztp_path.size() != 1) {
             std::reverse(ztp_path.begin(), ztp_path.end());   // path from to attractor to goal
@@ -701,7 +807,10 @@ int ZeroTimePlanner::Query(std::vector<RobotState>& path)
                 ztp_path.begin(),
                 ztp_path.end());
         }
-        
+
+
+        ROS_INFO("Pre length: %zu", m_regions[reg_idx].path.size());
+        ROS_INFO("Query path length: %zu", ztp_path.size());
         ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "Preprocessed path length: %zu", m_regions[reg_idx].path.size());
         ROS_DEBUG_NAMED(PI_LOGGER_ZERO, "Query path length:        %zu", ztp_path.size());
     }
@@ -722,7 +831,7 @@ void ZeroTimePlanner::WriteRegions()
     });
 
 	ROS_INFO("Writing regions to file");
-    boost::filesystem::path myFile = boost::filesystem::current_path() / "myfile2.dat";
+    boost::filesystem::path myFile = boost::filesystem::current_path() / "myfile3.dat";
     boost::filesystem::ofstream ofs(myFile);
     boost::archive::text_oarchive ta(ofs);
     ta << m_regions;
@@ -733,7 +842,7 @@ void ZeroTimePlanner::ReadRegions()
 	ROS_INFO("Reading regions from file");
     // getchar();
     try {
-        boost::filesystem::path myFile = boost::filesystem::current_path() / "myfile2.dat";
+        boost::filesystem::path myFile = boost::filesystem::current_path() / "myfile3.dat";
         boost::filesystem::ifstream ifs(myFile/*.native()*/);
         boost::archive::text_iarchive ta(ifs);
         ta >> m_regions;

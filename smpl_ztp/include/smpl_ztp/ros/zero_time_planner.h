@@ -52,7 +52,7 @@
 
 #include <moveit_msgs/AttachedCollisionObject.h>
 #include <moveit_msgs/CollisionObject.h>
-
+#include <moveit_msgs/MotionPlanResponse.h>
 enum{OUTSIDE,
         NOTCOVER,
         NOTSET,
@@ -83,7 +83,10 @@ public:
     void PreProcess(const RobotState& full_start_state);
     
     int Query(std::vector<RobotState>& path);
-
+    moveit::planning_interface::MoveGroupInterface::Plan ExecutePlan(moveit_msgs::MotionPlanResponse& response,std::string group_name,moveit_msgs::RobotState start_state);
+    // moveit::planning_interface::MoveGroupInterface::Plan ExecutePlan(moveit::planning_interface::MoveGroupInterface::Plan& my_plan,std::string group_name);
+    bool reverse_back_trajectory(moveit::planning_interface::MoveGroup::Plan& a_plan, std::string arm,robot_model::RobotModelPtr& _robot_model);
+    void MoveToStartState(std::string group_name,moveit_msgs::RobotState start_state);
 private:
 
     void InitMoveitOMPL();
