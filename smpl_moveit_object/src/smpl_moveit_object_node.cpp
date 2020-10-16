@@ -234,7 +234,7 @@
                std::stringstream ss;
                ss << "Blocking";
                msg.data = ss.str();
-               ROS_INFO("%s", msg.data.c_str());
+               ROS_INFO("Start launching object");
                obj_state_pub.publish(msg);
           }
 

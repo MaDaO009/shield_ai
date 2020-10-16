@@ -242,7 +242,6 @@ bool WorkspaceLatticeZero::IsStateValid(int state_id)
     }
 
     if(!IsWorkspaceStateInGoalRegion(workspace_state)) {
-        ROS_INFO("!!!!!!");
         return false;
     }
     // no need right?
