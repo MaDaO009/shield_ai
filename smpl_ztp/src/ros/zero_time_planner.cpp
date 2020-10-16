@@ -409,7 +409,6 @@ bool ZeroTimePlanner::reverse_back_trajectory(moveit::planning_interface::MoveGr
                 my_robot_trajectory.getRobotTrajectoryMsg(_revers_plan.trajectory_);
                 moveit::planning_interface::MoveGroup group(arm);
                 auto then = clock::now();
-                ROS_INFO("Start Get back");
                 bool success = (group.execute(_revers_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
                 auto now = clock::now();
                 ROS_INFO("back exectime: %f",to_seconds(now - then));
@@ -791,7 +790,7 @@ int ZeroTimePlanner::Query(std::vector<RobotState>& path)
             ROS_ERROR("Non zero expansion delay");
             getchar();
         }
-        ROS_INFO("Zero planner query flag 2");
+        
         if (!m_task_space->extractPath(solution_state_ids, ztp_path)) {
             ROS_ERROR("Failed to convert state id path to joint variable path");
             return FAILTOCONVERT;

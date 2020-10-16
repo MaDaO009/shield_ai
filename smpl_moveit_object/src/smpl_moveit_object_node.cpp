@@ -47,10 +47,8 @@
 
           void chatterCallback(const std_msgs::String::ConstPtr& msg)
                {
-               ROS_INFO("I heard: [%s]", msg->data.c_str());
                std::string my_string=msg->data.c_str();
                if(my_string=="Finished"){
-                    // ROS_INFO("I heard: [%s]", msg->data.c_str());
                     re_init_flag=true;
                }
           }
