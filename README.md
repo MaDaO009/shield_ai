@@ -160,3 +160,5 @@ An example of smpl_ztp/teleop.env:
 ## A.Coverage: The robot is not able to cover the whole surface under current setting. The reason may be that free angle (the angle of redundant joint) is limited, or PR2 is inherently unable to “protect” its head in our task.
 ## B.#Subregions: The region will may be unacceptable when the limitation of Euler angle and free angle loose. Can we find some ways to reduces the number of subregions?
 ## C.Execution: Current execution takes too much time. (I have to set gravity acceleration to -2m/s2 to better demonstrate the result.) And a minor problem is that the planner loads robot model several times during the execution.
+# V Video link
+https://youtu.be/WTMQgfIVldM  
